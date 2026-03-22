@@ -40,17 +40,21 @@ def mask_pii(transaction_data: dict) -> dict:
         del pan_with_salt
 
     # 2. Suppression des champs PII nominatifs (Noms, Prénoms, etc.)
-    # Liste flexible des champs potentiellement identifiants
-    pii_fields_to_remove = ["nom", "prenom", "customer_name", "cardholder_name", "adresse", "DE043_CARD_ACCEPTOR_NAME_LOC"]
+    # Liste flexible des champs potentiellement identifiants pouvant fuiter du dataset source
+    pii_fields_to_remove = ["first", "last", "nom", "prenom", "customer_name", "cardholder_name"]
     
     for field in pii_fields_to_remove:
         if field in masked_data:
             del masked_data[field]
+            
+    # Récupération des identifiants (STAN / RRN) pour le registre d'audit
+    stan = masked_data.get("DE011_STAN", "N/A")
+    rrn = masked_data.get("DE037_RRN", "N/A")
     
     # Forcer le garbage collector pour éliminer les traces en RAM
     gc.collect()
     
-    auditor.log_success()
+    auditor.log_success(stan=stan, rrn=rrn)
     # Log plus fin (optionnel, pour debug)
     # audit_logger.debug("Transaction anonymisée avec succès.")
     
