@@ -2,12 +2,39 @@ import json
 import sys
 from pathlib import Path
 from kafka import KafkaConsumer
+from pydantic import BaseModel, Field, ValidationError
 
 # Ajouter le chemin du dossier parent pour importer les modules security
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from security.pii_masking import mask_pii
 from security.audit_logger import audit_logger
+
+
+# Schéma de validation pour les données custom (DE123)
+class CustomDataSchema(BaseModel):
+    trans_num: str
+    unix_time: int
+    is_fraud: int
+    lat: float
+    long: float
+    merch_lat: float
+    merch_long: float
+
+
+# Schéma principal ISO 8583 avec validation
+class ISOTransaction(BaseModel):
+    message_type: str = Field(...,pattern="^0200$")  # Doit être "0200"
+    DE002_PAN: str = Field(..., min_length=8, max_length=19, pattern=r"^\d+$")  # minimum 8 et macimum 9 chiffres
+    DE003_ProcessingCode: str = "000000"
+    DE004_Amount: str = Field(..., min_length=12, max_length=12)  # Strictement 12 digits
+    DE007_DateTime: str = Field(..., min_length=10, max_length=10)  # MMDDhhmmss
+    DE011_STAN: str
+    DE018_MCC: str
+    DE037_RRN: str
+    DE043_MerchantLoc: str
+    DE049_Currency: str = "840"
+    DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
 TOPIC_NAME = 'topic_raw_transactions'
 BOOTSTRAP_SERVERS = ['localhost:9092']
@@ -44,7 +71,21 @@ def consume_and_process():
                 transaction = message.value
                 transaction_count += 1
                 
-                # Appliquer le masquage PII
+                # Valider le schéma ISO 8583 avec Pydantic
+                try:
+                    validated_transaction = ISOTransaction.model_validate(transaction)
+                    audit_logger.info(f"✅ Transaction #{transaction_count} validée contre le schéma ISO 8583")
+                except ValidationError as e:
+                    audit_logger.error(
+                        f"❌ Erreur validation schéma ISO 8583 - Transaction #{transaction_count}: {e}"
+                    )
+                    print(f"\n[❌ VALIDATION ERROR - Transaction #{transaction_count}]")
+                    print(f"   Erreurs détectées:")
+                    for error in e.errors():
+                        print(f"   - {error['loc']}: {error['msg']}")
+                    continue
+                
+                # Appliquer le masquage PII (sur les données validées)
                 masked_transaction = mask_pii(transaction)
                 
                 # Extraction des infos pour le log
