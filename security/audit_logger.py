@@ -33,10 +33,13 @@ class TransactionAuditor:
         self.processed_transactions = 0
         self.leak_detected = 0
 
-    def log_success(self):
+    def log_success(self, stan="N/A", rrn="N/A"):
         self.processed_transactions += 1
         if self.processed_transactions % 100 == 0:
-            audit_logger.info(f"{self.processed_transactions} transactions vectorisées, {self.leak_detected} fuite détectée.")
+            audit_logger.info(f"{self.processed_transactions} transactions traitées, {self.leak_detected} fuite détectée. Dernière transaction RRN: {rrn}, STAN: {stan}")
+        
+        # Log détaillé (niveau DEBUG pour ne pas saturer audit.log, ou INFO si strict)
+        audit_logger.debug(f"Transaction validée - STAN: {stan} | RRN: {rrn}")
 
     def log_leak_warning(self, detail: str):
         self.leak_detected += 1
