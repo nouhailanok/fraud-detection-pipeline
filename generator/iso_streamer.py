@@ -27,7 +27,7 @@ def generate_stan():
     global stan_counter
     stan = stan_counter % 1000000  # rollover at 999999
     stan_counter += 1
-    return SERVER_ID + str(stan).zfill(6)  
+    return str(stan).zfill(6)  
 
 # Génération DE037 using the first 12 digits of trans_num + collision handling
 
