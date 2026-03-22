@@ -2,6 +2,19 @@ import csv
 import time
 from datetime import datetime
 
+from kafka import KafkaProducer
+import json
+
+# Initialisation du producer 
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092'],
+    # Cette ligne transforme automatiquement le dictionnaires Python en JSON bytes
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
+
+
+TOPIC_NAME = 'topic_raw_transactions'
+
 #  variable global 
 SERVER_ID = "01"
 stan_counter = 1
@@ -81,7 +94,11 @@ def stream_csv(file_path, delay=0.1):
         for row in reader:
             try:
                 iso_msg = map_to_iso(row)
-                print(iso_msg)  # 👉 plus tard: envoyer à Kafka / API
+                print(iso_msg)
+
+                #envoie vers kafka
+                producer.send(TOPIC_NAME, value=iso_msg)
+                producer.flush() # Force l'envoi
                 time.sleep(delay)
 
             except Exception as e:
