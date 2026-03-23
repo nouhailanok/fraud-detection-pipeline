@@ -12,17 +12,22 @@ CA_CERT = str(BASE_CERT_PATH / "ca.crt")
 CLIENT_CERT = str(BASE_CERT_PATH / "client.crt")
 CLIENT_KEY = str(BASE_CERT_PATH / "client.key")
 
-# Initialisation du producer avec mTLS (SSL)
-producer = KafkaProducer(
-    bootstrap_servers=['localhost:9093'],  # Port SSL pour mTLS
-    security_protocol='SSL',               # Activation SSL/mTLS
-    ssl_cafile=CA_CERT,                    # Autorité de Certification
-    ssl_certfile=CLIENT_CERT,              # Certificat client
-    ssl_keyfile=CLIENT_KEY,                # Clé privée client
-    ssl_check_hostname=False,              # Mode dev (localhost)
-    # Cette ligne transforme automatiquement le dictionnaires Python en JSON bytes
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+def create_producer(max_attempts=60, retry_delay=2):
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return KafkaProducer(
+                bootstrap_servers=['kafka:9093'],
+                security_protocol='SSL',
+                ssl_cafile=CA_CERT,
+                ssl_certfile=CLIENT_CERT,
+                ssl_keyfile=CLIENT_KEY,
+                ssl_check_hostname=False,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            )
+        except Exception as error:
+            print(f"[PRODUCER] Kafka indisponible (tentative {attempt}/{max_attempts}): {error}")
+            time.sleep(retry_delay)
+    raise RuntimeError("Impossible de se connecter à Kafka après plusieurs tentatives")
 
 
 TOPIC_NAME = 'topic_raw_transactions'
@@ -103,23 +108,26 @@ def stream_csv(file_path, delay=0.1):
     print(f"\n[📤 PRODUCER] Démarrage du streaming ISO 8583 vers Kafka...")
     print(f"[🔒 SÉCURITÉ] Connexion mTLS activée (port 9093)")
     print(f"[📂 DATASET] Fichier: {file_path}\n")
+    producer = create_producer()
     
-    with open(file_path, mode='r') as file:
-        reader = csv.DictReader(file)
+    try:
+        with open(file_path, mode='r') as file:
+            reader = csv.DictReader(file)
 
-        for row in reader:
-            try:
-                iso_msg = map_to_iso(row)
-                print(iso_msg)
+            for row in reader:
+                try:
+                    iso_msg = map_to_iso(row)
+                    print(iso_msg)
 
-                #envoie vers kafka
-                producer.send(TOPIC_NAME, value=iso_msg)
-                producer.flush() # Force l'envoi
-                time.sleep(delay)
+                    future = producer.send(TOPIC_NAME, value=iso_msg)
+                    future.get(timeout=10)
+                    time.sleep(delay)
 
-            except Exception as e:
-                print(f"Erreur sur ligne : {e}")
-                continue
+                except Exception as e:
+                    print(f"Erreur sur ligne : {e}")
+                    continue
+    finally:
+        producer.close()
 
 
 # Lancement

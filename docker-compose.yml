@@ -1,0 +1,49 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: apache/kafka:3.8.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    command: ["/opt/kafka/bin/kafka-server-start.sh", "/etc/kafka/server.properties"]
+    volumes:
+      - ./kafka/server.properties:/etc/kafka/server.properties:ro
+      - ./security/certs:/etc/kafka/secrets:ro
+
+  generator:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        CMD ["python", "generator/iso_streamer.py"]
+    container_name: node_generator
+    depends_on:
+      - kafka
+    volumes:
+      - .:/app
+
+  ingestion_processor:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        CMD ["python", "ingestion/ingestion.py"]
+    container_name: node_ingestion
+    depends_on:
+      - kafka
+    volumes:
+      - .:/app

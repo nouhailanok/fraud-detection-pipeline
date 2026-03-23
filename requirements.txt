@@ -2,3 +2,4 @@
 kafka-python==2.0.2
 pydantic==2.6.1
 python-dateutil==2.8.2
+pandas

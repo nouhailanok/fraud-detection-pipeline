@@ -37,7 +37,7 @@ class ISOTransaction(BaseModel):
     DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
 TOPIC_NAME = 'topic_raw_transactions'
-BOOTSTRAP_SERVERS_SSL = ['localhost:9093']  # ⚠️ Port SSL pour mTLS
+BOOTSTRAP_SERVERS_SSL = ['kafka:9093']  # ⚠️ Port SSL pour mTLS
 CONSUMER_GROUP = 'fraud-detection-group'
 
 # Chemins vers les certificats mTLS
@@ -53,29 +53,40 @@ def consume_and_process():
     et enregistre les transactions traitées.
     """
     
+    consumer = None
+    transaction_count = 0
+
     try:
-        # Initialisation du KafkaConsumer avec mTLS (SSL)
-        consumer = KafkaConsumer(
-            TOPIC_NAME,
-            bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
-            security_protocol='SSL',              # Activation SSL/mTLS
-            ssl_cafile=CA_CERT,                   # Autorité de Certification
-            ssl_certfile=CLIENT_CERT,             # Certificat client
-            ssl_keyfile=CLIENT_KEY,               # Clé privée client
-            ssl_check_hostname=False,             # Mode dev (localhost)
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            group_id=CONSUMER_GROUP,
-            auto_offset_reset='earliest',
-            enable_auto_commit=True,
-            max_poll_records=500,
-            session_timeout_ms=30000
-        )
+        for attempt in range(1, 61):
+            try:
+                consumer = KafkaConsumer(
+                    TOPIC_NAME,
+                    bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
+                    security_protocol='SSL',
+                    ssl_cafile=CA_CERT,
+                    ssl_certfile=CLIENT_CERT,
+                    ssl_keyfile=CLIENT_KEY,
+                    ssl_check_hostname=False,
+                    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                    group_id=CONSUMER_GROUP,
+                    auto_offset_reset='earliest',
+                    enable_auto_commit=True,
+                    max_poll_records=500,
+                    session_timeout_ms=30000
+                )
+                break
+            except Exception as error:
+                print(f"[INGESTION] Kafka indisponible (tentative {attempt}/60): {error}")
+                audit_logger.warning(f"Kafka indisponible (tentative {attempt}/60): {error}")
+                import time
+                time.sleep(2)
+
+        if consumer is None:
+            raise RuntimeError("Impossible de se connecter à Kafka après plusieurs tentatives")
         
         audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}' avec mTLS (port 9093)")
         print(f"[INGESTION] Connecté via mTLS au topic '{TOPIC_NAME}'...")
         print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
-        
-        transaction_count = 0
         
         # Boucle de consommation
         for message in consumer:
@@ -139,8 +150,9 @@ def consume_and_process():
         print(f"[❌] Erreur critique: {e}")
     
     finally:
-        consumer.close()
-        audit_logger.info("Consumer Kafka fermé")
+        if consumer is not None:
+            consumer.close()
+            audit_logger.info("Consumer Kafka fermé")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+Kafka monitoring commands
+=========================
+
+1) List topics
+docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+2) Read live messages from the transactions topic
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic topic_raw_transactions
+
+3) Check consumer group lag
+docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group fraud-detection-group
+
+4) Check topic offsets growth
+docker exec kafka /opt/kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list localhost:9092 --topic topic_raw_transactions
