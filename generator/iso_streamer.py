@@ -1,13 +1,25 @@
 import csv
 import time
 from datetime import datetime
+from pathlib import Path
 
 from kafka import KafkaProducer
 import json
 
-# Initialisation du producer 
+# Chemins vers les certificats mTLS
+BASE_CERT_PATH = Path(__file__).parent.parent / "security" / "certs"
+CA_CERT = str(BASE_CERT_PATH / "ca.crt")
+CLIENT_CERT = str(BASE_CERT_PATH / "client.crt")
+CLIENT_KEY = str(BASE_CERT_PATH / "client.key")
+
+# Initialisation du producer avec mTLS (SSL)
 producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'],
+    bootstrap_servers=['localhost:9093'],  # Port SSL pour mTLS
+    security_protocol='SSL',               # Activation SSL/mTLS
+    ssl_cafile=CA_CERT,                    # Autorité de Certification
+    ssl_certfile=CLIENT_CERT,              # Certificat client
+    ssl_keyfile=CLIENT_KEY,                # Clé privée client
+    ssl_check_hostname=False,              # Mode dev (localhost)
     # Cette ligne transforme automatiquement le dictionnaires Python en JSON bytes
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
@@ -88,6 +100,10 @@ def map_to_iso(row):
 
 # Streamer principal
 def stream_csv(file_path, delay=0.1):
+    print(f"\n[📤 PRODUCER] Démarrage du streaming ISO 8583 vers Kafka...")
+    print(f"[🔒 SÉCURITÉ] Connexion mTLS activée (port 9093)")
+    print(f"[📂 DATASET] Fichier: {file_path}\n")
+    
     with open(file_path, mode='r') as file:
         reader = csv.DictReader(file)
 

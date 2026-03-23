@@ -37,21 +37,32 @@ class ISOTransaction(BaseModel):
     DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
 TOPIC_NAME = 'topic_raw_transactions'
-BOOTSTRAP_SERVERS = ['localhost:9092']
+BOOTSTRAP_SERVERS_SSL = ['localhost:9093']  # ⚠️ Port SSL pour mTLS
 CONSUMER_GROUP = 'fraud-detection-group'
+
+# Chemins vers les certificats mTLS
+BASE_CERT_PATH = Path(__file__).parent.parent / "security" / "certs"
+CA_CERT = str(BASE_CERT_PATH / "ca.crt")
+CLIENT_CERT = str(BASE_CERT_PATH / "client.crt")
+CLIENT_KEY = str(BASE_CERT_PATH / "client.key")
 
 
 def consume_and_process():
     """
-    Consomme les messages ISO 8583 depuis Kafka, applique le masquage PII
+    Consomme les messages ISO 8583 depuis Kafka (mTLS sécurisé), applique le masquage PII
     et enregistre les transactions traitées.
     """
     
     try:
-        # Initialisation du KafkaConsumer
+        # Initialisation du KafkaConsumer avec mTLS (SSL)
         consumer = KafkaConsumer(
             TOPIC_NAME,
-            bootstrap_servers=BOOTSTRAP_SERVERS,
+            bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
+            security_protocol='SSL',              # Activation SSL/mTLS
+            ssl_cafile=CA_CERT,                   # Autorité de Certification
+            ssl_certfile=CLIENT_CERT,             # Certificat client
+            ssl_keyfile=CLIENT_KEY,               # Clé privée client
+            ssl_check_hostname=False,             # Mode dev (localhost)
             value_deserializer=lambda m: json.loads(m.decode('utf-8')),
             group_id=CONSUMER_GROUP,
             auto_offset_reset='earliest',
@@ -60,8 +71,9 @@ def consume_and_process():
             session_timeout_ms=30000
         )
         
-        audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}'")
-        print(f"[INGESTION] En attente de messages du topic '{TOPIC_NAME}'...")
+        audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}' avec mTLS (port 9093)")
+        print(f"[INGESTION] Connecté via mTLS au topic '{TOPIC_NAME}'...")
+        print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
         
         transaction_count = 0
         
