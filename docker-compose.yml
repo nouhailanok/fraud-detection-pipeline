@@ -18,7 +18,7 @@ services:
       - ./kafka/server.properties:/etc/kafka/server.properties:ro
       - ./security/certs:/etc/kafka/secrets:ro
 
-  generator:
+  generator_1:
     build:
       context: .
       dockerfile_inline: |
@@ -26,14 +26,58 @@ services:
         WORKDIR /app
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "generator/iso_streamer.py"]
-    container_name: node_generator
+        CMD ["python", "generator/iso_streamer_1.py"]
+    container_name: node_generator_1
     depends_on:
       - kafka
     volumes:
       - .:/app
 
-  ingestion_processor:
+  generator_2:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "generator/iso_streamer_2.py"]
+      container_name: node_generator_2
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+
+  generator_3:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "generator/iso_streamer_3.py"]
+      container_name: node_generator_3
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+  generator_4:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "generator/iso_streamer_4.py"]
+      container_name: node_generator_4
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+  
+  ingestion_processor_1:
     build:
       context: .
       dockerfile_inline: |
@@ -41,9 +85,70 @@ services:
         WORKDIR /app
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "ingestion/ingestion.py"]
-    container_name: node_ingestion
+        CMD ["python", "ingestion/ingestion_1.py"]
+    container_name: node_ingestion_1
     depends_on:
       - kafka
     volumes:
       - .:/app
+
+  ingestion_processor_2:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "ingestion/ingestion_2.py"]
+      container_name: node_ingestion_2
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+
+  ingestion_processor_3:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "ingestion/ingestion_3.py"]
+      container_name: node_ingestion_3
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+
+  ingestion_processor_4:
+      build:
+        context: .
+        dockerfile_inline: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          CMD ["python", "ingestion/ingestion_4.py"]
+      container_name: node_ingestion_4
+      depends_on:
+        - kafka
+      volumes:
+        - .:/app
+
+  flower_server:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        CMD ["python", "federated/server.py"]
+    container_name: fl_aggregator
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./security/certs:/app/certs:ro
+  

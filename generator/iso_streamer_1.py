@@ -30,7 +30,7 @@ def create_producer(max_attempts=60, retry_delay=2):
     raise RuntimeError("Impossible de se connecter à Kafka après plusieurs tentatives")
 
 
-TOPIC_NAME = 'topic_raw_transactions'
+TOPIC_NAME = 'topic_raw_transactions_1'
 
 #  variable global 
 SERVER_ID = "01"

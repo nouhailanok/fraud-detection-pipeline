@@ -43,7 +43,7 @@ class ISOTransaction(BaseModel):
     DE049_Currency: str = "840"
     DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
-TOPIC_NAME = 'topic_raw_transactions'
+TOPIC_NAME = 'topic_raw_transactions_4'
 BOOTSTRAP_SERVERS_SSL = ['kafka:9093']  # ⚠️ Port SSL pour mTLS
 CONSUMER_GROUP = 'fraud-detection-group'
 
