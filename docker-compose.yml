@@ -32,6 +32,8 @@ services:
       - kafka
     volumes:
       - .:/app
+      - ./security/certs/gen_1.crt:/app/security/certs/client.crt:ro
+      - ./security/certs/gen_1.key:/app/security/certs/client.key:ro
 
   generator_2:
       build:
@@ -47,6 +49,8 @@ services:
         - kafka
       volumes:
         - .:/app
+        - ./security/certs/gen_2.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/gen_2.key:/app/security/certs/client.key:ro
 
   generator_3:
       build:
@@ -62,6 +66,8 @@ services:
         - kafka
       volumes:
         - .:/app
+        - ./security/certs/gen_3.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/gen_3.key:/app/security/certs/client.key:ro
   generator_4:
       build:
         context: .
@@ -76,6 +82,8 @@ services:
         - kafka
       volumes:
         - .:/app
+        - ./security/certs/gen_4.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/gen_4.key:/app/security/certs/client.key:ro
   
   ingestion_processor_1:
     build:
@@ -89,8 +97,17 @@ services:
     container_name: node_ingestion_1
     depends_on:
       - kafka
+      - flower_server
+    environment:
+      FLOWER_SERVER_HOST: flower_server
+      FLOWER_SERVER_PORT: "8080"
+      FLOWER_CA_CERT: /app/security/certs/ca.crt
+      FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+      FLOWER_CLIENT_KEY: /app/security/certs/client.key
     volumes:
       - .:/app
+      - ./security/certs/ing_1.crt:/app/security/certs/client.crt:ro
+      - ./security/certs/ing_1.key:/app/security/certs/client.key:ro
 
   ingestion_processor_2:
       build:
@@ -104,8 +121,17 @@ services:
       container_name: node_ingestion_2
       depends_on:
         - kafka
+        - flower_server
+      environment:
+        FLOWER_SERVER_HOST: flower_server
+        FLOWER_SERVER_PORT: "8080"
+        FLOWER_CA_CERT: /app/security/certs/ca.crt
+        FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+        FLOWER_CLIENT_KEY: /app/security/certs/client.key
       volumes:
         - .:/app
+        - ./security/certs/ing_2.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/ing_2.key:/app/security/certs/client.key:ro
 
   ingestion_processor_3:
       build:
@@ -119,8 +145,17 @@ services:
       container_name: node_ingestion_3
       depends_on:
         - kafka
+        - flower_server
+      environment:
+        FLOWER_SERVER_HOST: flower_server
+        FLOWER_SERVER_PORT: "8080"
+        FLOWER_CA_CERT: /app/security/certs/ca.crt
+        FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+        FLOWER_CLIENT_KEY: /app/security/certs/client.key
       volumes:
         - .:/app
+        - ./security/certs/ing_3.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/ing_3.key:/app/security/certs/client.key:ro
 
   ingestion_processor_4:
       build:
@@ -134,8 +169,17 @@ services:
       container_name: node_ingestion_4
       depends_on:
         - kafka
+        - flower_server
+      environment:
+        FLOWER_SERVER_HOST: flower_server
+        FLOWER_SERVER_PORT: "8080"
+        FLOWER_CA_CERT: /app/security/certs/ca.crt
+        FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+        FLOWER_CLIENT_KEY: /app/security/certs/client.key
       volumes:
         - .:/app
+        - ./security/certs/ing_4.crt:/app/security/certs/client.crt:ro
+        - ./security/certs/ing_4.key:/app/security/certs/client.key:ro
 
   flower_server:
     build:
@@ -147,8 +191,19 @@ services:
         RUN pip install --no-cache-dir -r requirements.txt
         CMD ["python", "federated/server.py"]
     container_name: fl_aggregator
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    environment:
+      FLOWER_TLS_CA_CERT: /app/certs/ca.crt
+      FLOWER_TLS_SERVER_CERT: /app/certs/flower_server.crt
+      FLOWER_TLS_SERVER_KEY: /app/certs/flower_server.key
+      FLOWER_TLS_REQUIRE_CLIENT_CERT: "true"
     ports:
       - "8080:8080"
     volumes:
       - ./security/certs:/app/certs:ro
-  
+
+networks:
+  default:
+    name: fraud_detection_network
