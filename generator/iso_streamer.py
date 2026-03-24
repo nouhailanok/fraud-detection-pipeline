@@ -97,6 +97,8 @@ def map_to_iso(row):
             "long": float(row["long"]),
             "merch_lat": float(row["merch_lat"]),
             "merch_long": float(row["merch_long"]),
+            "merchant_name": row["merchant"],  # Nouvelle donnée pour enrichissement
+            "dob": row["dob"],  # Nouvelle donnée pour enrichissement
         }
     }
 

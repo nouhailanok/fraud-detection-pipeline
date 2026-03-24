@@ -37,7 +37,8 @@ class TransactionEnricher:
     def _calculate_age(self, dob_str, current_dt):
         """Calcule l'âge exact du client au moment de la transaction."""
         # Format du CSV : DD/MM/YYYY (ex: 21/08/1947)
-        dob = datetime.strptime(dob_str, "%d/%m/%Y")
+        # dob = datetime.strptime(dob_str, "%d/%m/%Y")
+        dob = datetime.strptime(dob_str, "%Y-%m-%d")
         # On soustrait les années, et on retire 1 si l'anniversaire n'est pas encore passé cette année
         age = current_dt.year - dob.year - ((current_dt.month, current_dt.day) < (dob.month, dob.day))
         return age
