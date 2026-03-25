@@ -12,3 +12,30 @@ docker exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server loc
 
 4) Check topic offsets growth
 docker exec kafka /opt/kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list localhost:9092 --topic topic_raw_transactions
+
+5) Enter an ingestion node container (interactive shell)
+docker exec -it node_ingestion_1 sh
+
+6) Enter Flower server container (interactive shell)
+docker exec -it fl_aggregator sh
+
+7) Show running process inside an ingestion node
+docker exec -it node_ingestion_1 sh -c "ps aux"
+
+8) Show running process inside Flower server
+docker exec -it fl_aggregator sh -c "ps aux"
+
+9) Follow logs of one ingestion node (client FL side)
+docker logs -f node_ingestion_1
+
+10) Follow logs of Flower server (server FL side)
+docker logs -f fl_aggregator
+
+11) Follow both ingestion + Flower logs at the same time (recommended)
+docker compose logs -f ingestion_processor_1 ingestion_processor_2 ingestion_processor_3 ingestion_processor_4 flower_server
+
+12) Filter only FL train/evaluate/reconnect events from ingestion logs
+docker compose logs ingestion_processor_1 ingestion_processor_2 ingestion_processor_3 ingestion_processor_4 | findstr /I "Received: train Received: evaluate reconnect"
+
+13) Filter only Flower round progression and aggregation logs
+docker compose logs flower_server | findstr /I "[ROUND] aggregate_fit aggregate_evaluate [SUMMARY]"

@@ -50,7 +50,7 @@ create_server_cert "server" "kafka" "DNS:kafka,DNS:localhost,IP:127.0.0.1"
 cat server.key server.crt > server.pem
 
 echo "3. Génération du certificat serveur Flower..."
-create_server_cert "flower_server" "flower_server" "DNS:flower_server,DNS:localhost,IP:127.0.0.1"
+create_server_cert "flower_server" "flower_server" "DNS:flower_server,DNS:flower,DNS:localhost,IP:127.0.0.1"
 
 echo "4. Génération des certificats clients des générateurs (4 nœuds)..."
 for i in 1 2 3 4; do
