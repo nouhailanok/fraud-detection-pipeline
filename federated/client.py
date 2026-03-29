@@ -51,6 +51,7 @@ class FraudClient(fl.client.NumPyClient):
         """La phase d'évaluation locale pour calculer l'accuracy."""
         self.set_parameters(parameters)
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         metrics = self._compute_metrics(self.x_val, self.y_val)
         return float(metrics["loss"]), len(self.x_val), metrics
 
@@ -146,6 +147,8 @@ def main() -> None:
         time.sleep(retry_seconds)
 
 =======
+=======
+>>>>>>> Stashed changes
         self.model.eval()
         loss = 0.0
         correct = 0
@@ -163,6 +166,9 @@ def main() -> None:
                 
         accuracy = correct / total
         return float(loss), len(self.testloader.dataset), {"accuracy": float(accuracy)}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 # --- 2. LANCEMENT DU CLIENT ---
