@@ -63,7 +63,6 @@ def consume_and_process():
     consumer = None
     transaction_count = 0
 
-
     # --- AJOUT 5 : INITIALISATION MLOPS ---
     enricher = TransactionEnricher(time_window_hours=24)
     vectorizer = TransactionVectorizer()
@@ -127,32 +126,9 @@ def consume_and_process():
                 
                 # Appliquer le masquage PII (sur les données validées)
                 masked_transaction = mask_pii(transaction)
-                
-                # Extraction des infos pour le log
-                pan_masked = masked_transaction.get('DE002_PAN', 'N/A')[:16]
-                amount = masked_transaction.get('DE004_Amount', 'N/A')
-                is_fraud = transaction.get('DE123_CustomData', {}).get('is_fraud', 'N/A')
-                
-                # Log d'audit et affichage
-                audit_logger.info(
-                    f"Transaction #{transaction_count} | PAN masqué: {pan_masked}... | "
-                    f"Montant: {amount} | Fraude: {is_fraud}"
-                )
-                
-                print(f"\n[✅ TRANSACTION #{transaction_count}]")
-                print(f"   Message Type: {masked_transaction.get('message_type')}")
-                print(f"   PAN (masqué): {pan_masked}...")
-                print(f"   Montant: {masked_transaction.get('DE004_Amount')}")
-                print(f"   DateTime: {masked_transaction.get('DE007_DateTime')}")
-                print(f"   STAN: {masked_transaction.get('DE011_STAN')}")
-                print(f"   Fraude: {is_fraud}")
-                print(f"   Statut: ✅ PII masquée avec succès")
-                
-                
-                # --- LE PONT (MAPPING) VERS VOTRE CODE ---
                 custom_data = transaction.get('DE123_CustomData', {})
                 
-                # 1. On prépare le dictionnaire pour votre Enrichisseur
+                # 3. Préparation du dictionnaire pour l'Enrichisseur
                 ml_input = {
                     "message_type": masked_transaction.get('message_type'),
                     "DE002_PAN_HASH": masked_transaction.get('DE002_PAN'),
@@ -163,56 +139,46 @@ def consume_and_process():
                     "Client_Long": custom_data.get('long'),
                     "Merch_Lat": custom_data.get('merch_lat'),
                     "Merch_Long": custom_data.get('merch_long'),
-                    "Merchant_Name": custom_data.get('merchant_name'), # Maintenant on est sûr de l'avoir !
-                    "DOB": custom_data.get('dob'),                # Maintenant on est sûr de l'avoir !
+                    "Merchant_Name": custom_data.get('merchant_name'),
+                    "DOB": custom_data.get('dob'),
                     "Metadata_is_fraud": custom_data.get('is_fraud')
                 }
 
-                # 2. Vos calculs mathématiques
+                # 4. Enrichissement
                 enriched_json = enricher.enrich(ml_input)
 
-                # # --- 🛑 AJOUT TEMPORAIRE POUR LE TEST VISUEL ---
-                # # Affiche seulement les 3 premières transactions pour ne pas spammer votre terminal
-                # if transaction_count <= 3:
-                #     print(f"\n[🔍 TEST VISUEL - JSON ENRICHI #{transaction_count}]")
-                #     # json.dumps avec indent=4 permet d'afficher le dictionnaire de façon très lisible
-                #     print(json.dumps(enriched_json, indent=4))
-                # # -----------------------------------------------
+                # 5. Vectorisation (Sortie : X = 26 dimensions)
+                X, y = vectorizer.vectorize(enriched_json)
 
-                # --- 🛑 TEST VISUEL CONTINU ---
-                print(f"\n[🔍 TEST VISUEL - JSON ENRICHI #{transaction_count}]")
-                print(json.dumps(enriched_json, indent=4))
-                print("-" * 50) # Une petite ligne pour séparer chaque transaction
+                # --- 🛠️ MODIFICATION : AJOUT DE L'IDENTIFIANT ---
+                # On convertit le PAN_HASH (string hex) en identifiant numérique stable
+                pan_hex = enriched_json["PAN_HASH"]
+                pan_id = float(int(pan_hex[:12], 16)) # Utilisation des 12 premiers caractères hex
+
+                # On insère l'ID à l'index 0. X passe de 26 à 27 colonnes.
+                X_with_id = np.insert(X, 0, pan_id) 
                 # -----------------------------------------------
 
-                X, y = vectorizer.vectorize(enriched_json)
-                
-                # 3. Ajout au lot (Batching)
-                X_batch.append(X)
+                # 6. Ajout au lot
+                X_batch.append(X_with_id)
                 y_batch.append(y)
 
-                # 4. Sauvegarde sur disque tous les 1000 logs
+                # 7. Sauvegarde sur disque
                 if len(X_batch) >= BATCH_SIZE:
-                    save_dir = Path(__file__).parent.parent / "data" / "tensors"
+                    save_dir = Path(__file__).parent.parent / "data" / "node_1" / "tensors"
                     save_dir.mkdir(parents=True, exist_ok=True)
                     
-                    np.save(save_dir / f"X_batch_{message.timestamp}.npy", np.vstack(X_batch))
-                    np.save(save_dir / f"y_batch_{message.timestamp}.npy", np.vstack(y_batch))
+                    timestamp = message.timestamp
+                    np.save(save_dir / f"X_batch_{timestamp}.npy", np.vstack(X_batch))
+                    np.save(save_dir / f"y_batch_{timestamp}.npy", np.vstack(y_batch))
                     
-                    print(f"💾 [MLOps] Lot de {BATCH_SIZE} tenseurs (26 dimensions) sauvegardé.")
+                    print(f"💾 [MLOps] Lot de {BATCH_SIZE} sauvegardé. (Col 0: ID, Col 1-27: Features)")
                     
                     X_batch = []
                     y_batch = []
-                # ----------------------------------------------------
-
-                # Optionnel : sauvegarder ou envoyer vers un autre système
-                # (base de données, topic Kafka de sortie, fichier, etc.)
                 
-            except json.JSONDecodeError as e:
-                audit_logger.error(f"Erreur décodage JSON: {e}")
             except Exception as e:
-                audit_logger.error(f"Erreur lors du traitement de la transaction: {e}")
-                print(f"[❌] Erreur: {e}")
+                audit_logger.error(f"Erreur lors du traitement: {e}")
                 continue
     
     except KeyboardInterrupt:

@@ -175,7 +175,7 @@ def start_client_compatible(client: fl.client.NumPyClient, server_address: str) 
 
     numpy_client_fn(**kwargs)
 
-
+ 
 def main() -> None:
     client_id = os.getenv("CLIENT_ID", "ingestion-1")
     host = os.getenv("FLOWER_SERVER_HOST", "flower")
@@ -211,6 +211,7 @@ def main() -> None:
             break
 
         print(f"[FL-CLIENT] Nouvelle tentative dans {retry_seconds}s...")
+        print(client_id)
         time.sleep(retry_seconds)
 
 

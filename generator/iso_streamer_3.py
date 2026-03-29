@@ -134,4 +134,4 @@ def stream_csv(file_path, delay=0.1):
 
 # Lancement
 if __name__ == "__main__":
-    stream_csv("data/fraudTrain.csv", delay=0.1)
+    stream_csv("data/node_3/local_data.csv", delay=0.1)
