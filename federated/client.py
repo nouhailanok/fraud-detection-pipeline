@@ -211,6 +211,7 @@ def main() -> None:
             break
 
         print(f"[FL-CLIENT] Nouvelle tentative dans {retry_seconds}s...")
+        print(client_id)
         time.sleep(retry_seconds)
 
 
