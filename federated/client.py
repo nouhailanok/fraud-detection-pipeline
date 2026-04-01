@@ -235,7 +235,8 @@ def main():
 
 
     # Modèle
-    model = FraudRNN(input_dim=26, hidden_dim=64)
+    # model = FraudRNN(input_dim=26, hidden_dim=64)
+    model = FraudRNN(input_dim=26, hidden_dim=128, num_layers=2, dropout_rate=0.2)
 
     # Client Flower
     client = FlowerClient(model, train_loader, val_loader)
