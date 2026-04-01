@@ -177,7 +177,7 @@ def start_client_compatible(client: fl.client.NumPyClient, server_address: str) 
 
 
 def main() -> None:
-    client_id = os.getenv("CLIENT_ID", "ingestion-1")
+    client_id = os.getenv("CLIENT_ID", "1")
     host = os.getenv("FLOWER_SERVER_HOST", "flower")
     port = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
     server_address = f"{host}:{port}"

@@ -101,7 +101,7 @@ services:
       - kafka
       - flower_server
     environment:
-      CLIENT_ID: ingestion-1
+      CLIENT_ID: 1
       FLOWER_SERVER_HOST: flower
       FLOWER_SERVER_PORT: "8080"
       FLOWER_CA_CERT: /app/security/certs/ca.crt
@@ -131,7 +131,7 @@ services:
         - kafka
         - flower_server
       environment:
-        CLIENT_ID: ingestion-2
+        CLIENT_ID: 2
         FLOWER_SERVER_HOST: flower
         FLOWER_SERVER_PORT: "8080"
         FLOWER_CA_CERT: /app/security/certs/ca.crt
@@ -161,7 +161,7 @@ services:
         - kafka
         - flower_server
       environment:
-        CLIENT_ID: ingestion-3
+        CLIENT_ID: 3
         FLOWER_SERVER_HOST: flower
         FLOWER_SERVER_PORT: "8080"
         FLOWER_CA_CERT: /app/security/certs/ca.crt
@@ -191,7 +191,7 @@ services:
         - kafka
         - flower_server
       environment:
-        CLIENT_ID: ingestion-4
+        CLIENT_ID: 4
         FLOWER_SERVER_HOST: flower
         FLOWER_SERVER_PORT: "8080"
         FLOWER_CA_CERT: /app/security/certs/ca.crt
