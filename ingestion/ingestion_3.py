@@ -25,26 +25,26 @@ class CustomDataSchema(BaseModel):
     long: float
     merch_lat: float
     merch_long: float
-    merchant_name: str     # <-- AJOUT : Nom du magasin
+    merchant_name: str
     dob: str
 
 
 # Schéma principal ISO 8583 avec validation
 class ISOTransaction(BaseModel):
-    message_type: str = Field(...,pattern="^0200$")  # Doit être "0200"
-    DE002_PAN: str = Field(..., min_length=8, max_length=19, pattern=r"^\d+$")  # minimum 8 et macimum 9 chiffres
+    message_type: str = Field(...,pattern="^0200$")
+    DE002_PAN: str = Field(..., min_length=8, max_length=19, pattern=r"^\d+$")
     DE003_ProcessingCode: str = "000000"
-    DE004_Amount: str = Field(..., min_length=12, max_length=12)  # Strictement 12 digits
-    DE007_DateTime: str = Field(..., min_length=10, max_length=10)  # MMDDhhmmss
+    DE004_Amount: str = Field(..., min_length=12, max_length=12)
+    DE007_DateTime: str = Field(..., min_length=10, max_length=10)
     DE011_STAN: str
     DE018_MCC: str
     DE037_RRN: str
     DE043_MerchantLoc: str
     DE049_Currency: str = "840"
-    DE123_CustomData: CustomDataSchema  # Validation imbriquée
+    DE123_CustomData: CustomDataSchema
 
 TOPIC_NAME = 'topic_raw_transactions_3'
-BOOTSTRAP_SERVERS_SSL = ['kafka:9093']  # ⚠️ Port SSL pour mTLS
+BOOTSTRAP_SERVERS_SSL = ['kafka:9093']
 CONSUMER_GROUP = 'fraud-detection-group'
 
 # Chemins vers les certificats mTLS
@@ -62,7 +62,6 @@ def consume_and_process():
     
     consumer = None
     transaction_count = 0
-
 
     # --- AJOUT 5 : INITIALISATION MLOPS ---
     enricher = TransactionEnricher(time_window_hours=24)
@@ -85,8 +84,7 @@ def consume_and_process():
                     ssl_check_hostname=False,
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     group_id=CONSUMER_GROUP,
-                    # auto_offset_reset='earliest',
-                    auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
+                    auto_offset_reset='latest',
                     enable_auto_commit=True,
                     max_poll_records=500,
                     session_timeout_ms=30000
@@ -103,7 +101,6 @@ def consume_and_process():
         
         audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}' avec mTLS (port 9093)")
         print(f"[INGESTION] Connecté via mTLS au topic '{TOPIC_NAME}'...")
-        print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
         
         # Boucle de consommation
         for message in consumer:
@@ -111,48 +108,21 @@ def consume_and_process():
                 transaction = message.value
                 transaction_count += 1
                 
-                # Valider le schéma ISO 8583 avec Pydantic
+                # 1. Validation Pydantic
                 try:
-                    validated_transaction = ISOTransaction.model_validate(transaction)
+                    ISOTransaction.model_validate(transaction)
                     audit_logger.info(f"✅ Transaction #{transaction_count} validée contre le schéma ISO 8583")
                 except ValidationError as e:
                     audit_logger.error(
                         f"❌ Erreur validation schéma ISO 8583 - Transaction #{transaction_count}: {e}"
                     )
-                    print(f"\n[❌ VALIDATION ERROR - Transaction #{transaction_count}]")
-                    print(f"   Erreurs détectées:")
-                    for error in e.errors():
-                        print(f"   - {error['loc']}: {error['msg']}")
                     continue
                 
-                # Appliquer le masquage PII (sur les données validées)
+                # 2. Masquage PII
                 masked_transaction = mask_pii(transaction)
-                
-                # Extraction des infos pour le log
-                pan_masked = masked_transaction.get('DE002_PAN', 'N/A')[:16]
-                amount = masked_transaction.get('DE004_Amount', 'N/A')
-                is_fraud = transaction.get('DE123_CustomData', {}).get('is_fraud', 'N/A')
-                
-                # Log d'audit et affichage
-                audit_logger.info(
-                    f"Transaction #{transaction_count} | PAN masqué: {pan_masked}... | "
-                    f"Montant: {amount} | Fraude: {is_fraud}"
-                )
-                
-                print(f"\n[✅ TRANSACTION #{transaction_count}]")
-                print(f"   Message Type: {masked_transaction.get('message_type')}")
-                print(f"   PAN (masqué): {pan_masked}...")
-                print(f"   Montant: {masked_transaction.get('DE004_Amount')}")
-                print(f"   DateTime: {masked_transaction.get('DE007_DateTime')}")
-                print(f"   STAN: {masked_transaction.get('DE011_STAN')}")
-                print(f"   Fraude: {is_fraud}")
-                print(f"   Statut: ✅ PII masquée avec succès")
-                
-                
-                # --- LE PONT (MAPPING) VERS VOTRE CODE ---
                 custom_data = transaction.get('DE123_CustomData', {})
                 
-                # 1. On prépare le dictionnaire pour votre Enrichisseur
+                # 3. Préparation du dictionnaire pour l'Enrichisseur
                 ml_input = {
                     "message_type": masked_transaction.get('message_type'),
                     "DE002_PAN_HASH": masked_transaction.get('DE002_PAN'),
@@ -163,56 +133,45 @@ def consume_and_process():
                     "Client_Long": custom_data.get('long'),
                     "Merch_Lat": custom_data.get('merch_lat'),
                     "Merch_Long": custom_data.get('merch_long'),
-                    "Merchant_Name": custom_data.get('merchant_name'), # Maintenant on est sûr de l'avoir !
-                    "DOB": custom_data.get('dob'),                # Maintenant on est sûr de l'avoir !
+                    "Merchant_Name": custom_data.get('merchant_name'),
+                    "DOB": custom_data.get('dob'),
                     "Metadata_is_fraud": custom_data.get('is_fraud')
                 }
 
-                # 2. Vos calculs mathématiques
+                # 4. Enrichissement
                 enriched_json = enricher.enrich(ml_input)
 
-                # # --- 🛑 AJOUT TEMPORAIRE POUR LE TEST VISUEL ---
-                # # Affiche seulement les 3 premières transactions pour ne pas spammer votre terminal
-                # if transaction_count <= 3:
-                #     print(f"\n[🔍 TEST VISUEL - JSON ENRICHI #{transaction_count}]")
-                #     # json.dumps avec indent=4 permet d'afficher le dictionnaire de façon très lisible
-                #     print(json.dumps(enriched_json, indent=4))
-                # # -----------------------------------------------
+                # 5. Vectorisation (Sortie : X = 26 dimensions)
+                X, y = vectorizer.vectorize(enriched_json)
 
-                # --- 🛑 TEST VISUEL CONTINU ---
-                print(f"\n[🔍 TEST VISUEL - JSON ENRICHI #{transaction_count}]")
-                print(json.dumps(enriched_json, indent=4))
-                print("-" * 50) # Une petite ligne pour séparer chaque transaction
+                # --- 🛠️ MODIFICATION : AJOUT DE L'IDENTIFIANT ---
+                pan_hex = enriched_json["PAN_HASH"]
+                pan_id = float(int(pan_hex[:12], 16))
+
+                # On insère l'ID à l'index 0. X passe de 26 à 27 colonnes.
+                X_with_id = np.insert(X, 0, pan_id) 
                 # -----------------------------------------------
 
-                X, y = vectorizer.vectorize(enriched_json)
-                
-                # 3. Ajout au lot (Batching)
-                X_batch.append(X)
+                # 6. Ajout au lot
+                X_batch.append(X_with_id)
                 y_batch.append(y)
 
-                # 4. Sauvegarde sur disque tous les 1000 logs
+                # 7. Sauvegarde sur disque
                 if len(X_batch) >= BATCH_SIZE:
-                    save_dir = Path(__file__).parent.parent / "data" / "tensors"
+                    save_dir = Path(__file__).parent.parent / "data" / "node_3" / "tensors"
                     save_dir.mkdir(parents=True, exist_ok=True)
                     
-                    np.save(save_dir / f"X_batch_{message.timestamp}.npy", np.vstack(X_batch))
-                    np.save(save_dir / f"y_batch_{message.timestamp}.npy", np.vstack(y_batch))
+                    timestamp = message.timestamp
+                    np.save(save_dir / f"X_batch_{timestamp}.npy", np.vstack(X_batch))
+                    np.save(save_dir / f"y_batch_{timestamp}.npy", np.vstack(y_batch))
                     
-                    print(f"💾 [MLOps] Lot de {BATCH_SIZE} tenseurs (26 dimensions) sauvegardé.")
+                    print(f"💾 [MLOps] Lot de {BATCH_SIZE} sauvegardé. (Col 0: ID, Col 1-27: Features)")
                     
                     X_batch = []
                     y_batch = []
-                # ----------------------------------------------------
-
-                # Optionnel : sauvegarder ou envoyer vers un autre système
-                # (base de données, topic Kafka de sortie, fichier, etc.)
                 
-            except json.JSONDecodeError as e:
-                audit_logger.error(f"Erreur décodage JSON: {e}")
             except Exception as e:
-                audit_logger.error(f"Erreur lors du traitement de la transaction: {e}")
-                print(f"[❌] Erreur: {e}")
+                audit_logger.error(f"Erreur lors du traitement: {e}")
                 continue
     
     except KeyboardInterrupt:
