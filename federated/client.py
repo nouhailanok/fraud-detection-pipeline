@@ -1,139 +1,149 @@
-import inspect
 import os
 import time
+import inspect
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, List, Tuple, Dict, Any
+
 
 import flwr as fl
-import numpy as np
-import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from collections import OrderedDict
+
+from opacus import PrivacyEngine
+from opacus.validators import ModuleValidator
+
+# 🔥 IMPORTS DE TON PROJET
+from models.fraud_rnn import FraudRNN
+from data.dataloader import get_dataloader
 
 
-def _client_index(client_id: str) -> int:
-    digits = "".join(ch for ch in client_id if ch.isdigit())
-    if not digits:
-        return 0
-    return max(int(digits) - 1, 0)
+# ============================
+# 🔧 UTILS
+# ============================
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _load_from_tensors(client_id: str) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    tensors_dir = Path(__file__).parent.parent / "data" / "tensors"
-    x_files = sorted(tensors_dir.glob("X_batch_*.npy"))
-    y_files = sorted(tensors_dir.glob("y_batch_*.npy"))
-    if not x_files or not y_files:
-        return None
-
-    x_map = {file.name.replace("X_batch_", ""): file for file in x_files}
-    y_map = {file.name.replace("y_batch_", ""): file for file in y_files}
-    common_suffixes = sorted(set(x_map.keys()).intersection(set(y_map.keys())))
-    if not common_suffixes:
-        return None
-
-    x_parts: list[np.ndarray] = []
-    y_parts: list[np.ndarray] = []
-    for suffix in common_suffixes:
-        x_parts.append(np.load(x_map[suffix]).astype(np.float32))
-        y_parts.append(np.load(y_map[suffix]).astype(np.float32))
-
-    x_all = np.vstack(x_parts)
-    y_all = np.vstack(y_parts).reshape(-1)
-
-    idx = _client_index(client_id)
-    shard_idx = np.arange(x_all.shape[0]) % 4 == idx
-    x_local = x_all[shard_idx]
-    y_local = y_all[shard_idx]
-
-    if x_local.shape[0] == 0:
-        return None
-    return x_local, y_local
+def get_model_parameters(model) -> List:
+    return [p.detach().cpu().numpy() for p in model.parameters()]
 
 
-def _load_from_csv(client_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    csv_path = Path(__file__).parent.parent / "data" / "fraudTrain.csv"
-    usecols = ["amt", "lat", "long", "city_pop", "merch_lat", "merch_long", "unix_time", "is_fraud"]
-    df = pd.read_csv(csv_path, usecols=usecols)
-    df = df.dropna()
-
-    idx = _client_index(client_id)
-    df = df.iloc[idx::4].reset_index(drop=True)
-
-    y = df["is_fraud"].astype(np.float32).to_numpy()
-    x = df.drop(columns=["is_fraud"]).astype(np.float32).to_numpy()
-
-    x_mean = x.mean(axis=0, keepdims=True)
-    x_std = x.std(axis=0, keepdims=True) + 1e-6
-    x = (x - x_mean) / x_std
-
-    max_rows = int(os.getenv("FL_MAX_LOCAL_ROWS", "5000"))
-    if x.shape[0] > max_rows:
-        x = x[:max_rows]
-        y = y[:max_rows]
-
-    return x, y
+def set_model_parameters(model, parameters: List):
+    for p, new_p in zip(model.parameters(), parameters):
+        p.data = torch.tensor(new_p, dtype=torch.float32).to(DEVICE)
 
 
-def load_local_dataset(client_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    tensor_data = _load_from_tensors(client_id)
-    if tensor_data is not None:
-        return tensor_data
-    return _load_from_csv(client_id)
 
+# ============================
+#  FLOWER CLIENT
+# ============================
 
-def sigmoid(values: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-np.clip(values, -50, 50)))
+class FlowerClient(fl.client.NumPyClient):
+    def __init__(self, model, train_loader, val_loader):
+        self.model = model.to(DEVICE)
 
+        self.train_loader = train_loader
+        self.val_loader = val_loader
 
-class LogisticFraudClient(fl.client.NumPyClient):
-    def __init__(self, x_train: np.ndarray, y_train: np.ndarray, x_val: np.ndarray, y_val: np.ndarray) -> None:
-        self.x_train = x_train
-        self.y_train = y_train
-        self.x_val = x_val
-        self.y_val = y_val
-        self.weights = np.zeros((x_train.shape[1],), dtype=np.float32)
-        self.bias = np.zeros((1,), dtype=np.float32)
+        self.criterion = nn.BCEWithLogitsLoss()
 
-    def get_parameters(self, config: dict[str, Any]) -> list[np.ndarray]:
-        return [self.weights, self.bias]
+        # ==========================================
+        # 🛠️ 1. RÉPARATION DU MODÈLE POUR OPACUS
+        # ==========================================
+        # On fixe le modèle AVANT de créer l'optimiseur !
+        self.model = ModuleValidator.fix(self.model)
 
-    def set_parameters(self, parameters: list[np.ndarray]) -> None:
-        self.weights = parameters[0].astype(np.float32)
-        self.bias = parameters[1].astype(np.float32)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
-    def fit(self, parameters: list[np.ndarray], config: dict[str, Any]) -> tuple[list[np.ndarray], int, dict[str, float]]:
+        # 🔐 DIFFERENTIAL PRIVACY
+        self.privacy_engine = PrivacyEngine()
+
+        self.model, self.optimizer, self.train_loader = self.privacy_engine.make_private(
+            module=self.model,
+            optimizer=self.optimizer,
+            data_loader=self.train_loader,
+            noise_multiplier=float(os.getenv("DP_NOISE", "1.5")),
+            max_grad_norm=1.0,
+        )
+
+    # ============================
+    # 📡 PARAMÈTRES
+    # ============================
+
+    def get_parameters(self, config):
+        return get_model_parameters(self.model)
+
+    def set_parameters(self, parameters):
+        set_model_parameters(self.model, parameters)
+
+    # ============================
+    # 🔥 TRAIN (AVEC DP)
+    # ============================
+
+    def fit(self, parameters, config):
         self.set_parameters(parameters)
-        lr = float(config.get("lr", os.getenv("FL_LR", "0.05")))
-        local_epochs = int(config.get("local_epochs", os.getenv("FL_LOCAL_EPOCHS", "1")))
+
+        self.model.train()
+        local_epochs = int(config.get("local_epochs", 1))
 
         for _ in range(local_epochs):
-            logits = self.x_train @ self.weights + self.bias[0]
-            probs = sigmoid(logits)
-            error = probs - self.y_train
+            for x, y in self.train_loader:
+                x, y = x.to(DEVICE), y.to(DEVICE)
 
-            grad_w = (self.x_train.T @ error) / max(self.x_train.shape[0], 1)
-            grad_b = np.array([error.mean()], dtype=np.float32)
+                self.optimizer.zero_grad()
 
-            self.weights -= lr * grad_w.astype(np.float32)
-            self.bias -= lr * grad_b
+                logits = self.model(x)
+                loss = self.criterion(logits, y)
 
-        metrics = self._compute_metrics(self.x_train, self.y_train)
-        return self.get_parameters(config), len(self.x_train), metrics
+                loss.backward()
+                self.optimizer.step()
 
-    def evaluate(self, parameters: list[np.ndarray], config: dict[str, Any]) -> tuple[float, int, dict[str, float]]:
+        # 🔐 Calcul ε
+        epsilon = self.privacy_engine.get_epsilon(delta=1e-5)
+        print(f"🔐 ε = {epsilon:.4f}")
+        target_epsilon = 1.0
+
+        if epsilon > target_epsilon:
+            print("⚠️ ε trop élevé → augmenter bruit")
+
+        return (
+            self.get_parameters(config),
+            len(self.train_loader.dataset),
+            {"epsilon": float(epsilon)},
+        )
+
+    # ============================
+    # 📊 EVALUATION
+    # ============================
+
+    def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        metrics = self._compute_metrics(self.x_val, self.y_val)
-        return float(metrics["loss"]), len(self.x_val), metrics
 
-    def _compute_metrics(self, x_data: np.ndarray, y_data: np.ndarray) -> dict[str, float]:
-        logits = x_data @ self.weights + self.bias[0]
-        probs = sigmoid(logits)
-        preds = (probs >= 0.5).astype(np.float32)
+        self.model.eval()
+        total_loss = 0.0
+        correct = 0
+        total = 0
 
-        eps = 1e-7
-        loss = -np.mean(y_data * np.log(probs + eps) + (1.0 - y_data) * np.log(1.0 - probs + eps))
-        acc = float((preds == y_data).mean())
+        with torch.no_grad():
+            for x, y in self.val_loader:
+                x, y = x.to(DEVICE), y.to(DEVICE)
 
-        return {"loss": float(loss), "accuracy": acc}
+                logits = self.model(x)
+                loss = self.criterion(logits, y)
 
+                probs = torch.sigmoid(logits)
+                preds = (probs > 0.5).float()
+
+                correct += (preds == y).sum().item()
+                total += y.size(0)
+                total_loss += loss.item() * y.size(0)
+
+        accuracy = correct / total if total > 0 else 0
+        loss = total_loss / total if total > 0 else 0
+
+        return loss, total, {"accuracy": accuracy}
 
 def _read_bytes(path_str: Optional[str]) -> Optional[bytes]:
     if not path_str:
@@ -176,43 +186,80 @@ def start_client_compatible(client: fl.client.NumPyClient, server_address: str) 
     numpy_client_fn(**kwargs)
 
 
-def main() -> None:
+# ============================
+# 🚀 MAIN
+# ============================
+
+def main():
     client_id = os.getenv("CLIENT_ID", "ingestion-1")
     host = os.getenv("FLOWER_SERVER_HOST", "flower")
     port = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
     server_address = f"{host}:{port}"
     retry_seconds = int(os.getenv("FL_CLIENT_RETRY_SECONDS", "10"))
     continuous = os.getenv("FL_CLIENT_CONTINUOUS", "true").lower() == "true"
+    #server_address = os.getenv("FLOWER_SERVER", "localhost:8080")
 
-    x_data, y_data = load_local_dataset(client_id)
-    if x_data.shape[0] < 10:
-        raise RuntimeError(f"Pas assez de données locales pour {client_id} (rows={x_data.shape[0]})")
+    
+    print(f"🚀 Démarrage de la BANQUE {client_id} sur {DEVICE}")
 
-    split = max(int(x_data.shape[0] * 0.8), 1)
-    x_train, x_val = x_data[:split], x_data[split:]
-    y_train, y_val = y_data[:split], y_data[split:]
 
-    if x_val.shape[0] == 0:
-        x_val = x_train
-        y_val = y_train
+    # chemins des données
+    # data_dir = Path("data/tensors")
+
+    # x_train_path = f"data/node_{client_id}/tensors"
+    # y_train_path = f"data/node_{client_id}/tensors"
+    # x_test_path = f"data/node_{client_id}/tensors"
+    # y_test_path = f"data/node_{client_id}/tensors"
+
+    # 📂 chemins des fichiers de données
+    x_train_path = Path(f"data/node_{client_id}/X_train.npy")
+    y_train_path = Path(f"data/node_{client_id}/y_train.npy")
+    x_test_path = Path(f"data/node_{client_id}/X_test.npy")
+    y_test_path = Path(f"data/node_{client_id}/y_test.npy")
+
+    # x_path = data_dir / f"X_{client_id}.npy"
+    # y_path = data_dir / f"y_{client_id}.npy"
+
+
+
+    if not x_train_path.exists() or not y_train_path.exists() or not x_test_path.exists() or not y_test_path.exists():
+        raise FileNotFoundError(f"❌ Données introuvables pour {client_id}")
+
+    print(f"📂 Chargement des données pour {client_id}")
+
+    # DataLoader
+    train_loader = get_dataloader(x_train_path, y_train_path, batch_size=64, seq_len=5, shuffle=True)
+    val_loader = get_dataloader(x_test_path, y_test_path, batch_size=64, seq_len=5, shuffle=False)
 
     print(f"[FL-CLIENT] {client_id} -> {server_address}")
-    print(f"[FL-CLIENT] train={len(x_train)} | val={len(x_val)} | features={x_train.shape[1]}")
 
-    fl_client = LogisticFraudClient(x_train, y_train, x_val, y_val)
+
+    # Modèle
+    model = FraudRNN(input_dim=26, hidden_dim=64)
+
+    # Client Flower
+    client = FlowerClient(model, train_loader, val_loader)
+
+
+    print(f"🚀 Connexion au serveur Flower : {server_address}")
+
+
     while True:
         try:
-            start_client_compatible(fl_client, server_address)
+            print(f"🔗 Tentative de connexion à {server_address}...")
+            start_client_compatible(client, server_address)
             print("[FL-CLIENT] Session terminée proprement")
+            break # Si on finit proprement, on sort de la boucle
         except Exception as exc:
-            print(f"[FL-CLIENT] Erreur de connexion/transport: {exc}")
-
+            print(f"[FL-CLIENT] Erreur de transport: {exc}")
         if not continuous:
             break
 
         print(f"[FL-CLIENT] Nouvelle tentative dans {retry_seconds}s...")
         print(client_id)
         time.sleep(retry_seconds)
+
+        
 
 
 if __name__ == "__main__":
