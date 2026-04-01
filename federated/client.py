@@ -54,7 +54,7 @@ class FlowerClient(fl.client.NumPyClient):
         # ==========================================
         # On fixe le modèle AVANT de créer l'optimiseur !
         self.model = ModuleValidator.fix(self.model)
-        
+
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
         # 🔐 DIFFERENTIAL PRIVACY
@@ -206,10 +206,10 @@ def main():
     # chemins des données
     # data_dir = Path("data/tensors")
 
-    x_train_path = f"data/node_{client_id}/X_train.npy"
-    y_train_path = f"data/node_{client_id}/y_train.npy"
-    x_test_path = f"data/node_{client_id}/X_test.npy"
-    y_test_path = f"data/node_{client_id}/y_test.npy"
+    x_train_path = f"data/node_{client_id}/tensors"
+    y_train_path = f"data/node_{client_id}/tensors"
+    x_test_path = f"data/node_{client_id}/tensors"
+    y_test_path = f"data/node_{client_id}/tensors"
 
 
     # x_path = data_dir / f"X_{client_id}.npy"
