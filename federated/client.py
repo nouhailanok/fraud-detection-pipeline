@@ -187,7 +187,7 @@ def start_client_compatible(client: fl.client.NumPyClient, server_address: str) 
 
 
 def main() -> None:
-    client_id = os.getenv("CLIENT_ID", "1")
+    client_id = os.getenv("CLIENT_ID", "ingestion-1")
     host = os.getenv("FLOWER_SERVER_HOST", "flower")
     port = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
     server_address = f"{host}:{port}"
@@ -208,10 +208,10 @@ def main() -> None:
     # y_test_path = f"data/node_{client_id}/tensors"
 
     # 📂 chemins des fichiers de données
-    x_train_path = f"data/node_{client_id}/tensors/X_train_*.npy"
-    y_train_path = f"data/node_{client_id}/tensors/y_train_*.npy"
-    x_test_path = f"data/node_{client_id}/tensors/X_test_*.npy"
-    y_test_path = f"data/node_{client_id}/tensors/y_test_*.npy"
+    x_train_path = Path(f"data/node_{client_id}/X_train.npy")
+    y_train_path = Path(f"data/node_{client_id}/y_train.npy")
+    x_test_path = Path(f"data/node_{client_id}/X_test.npy")
+    y_test_path = Path(f"data/node_{client_id}/y_test.npy")
 
     # x_path = data_dir / f"X_{client_id}.npy"
     # y_path = data_dir / f"y_{client_id}.npy"
