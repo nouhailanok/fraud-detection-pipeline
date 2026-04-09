@@ -197,3 +197,4 @@ def consume_and_process():
 
 if __name__ == "__main__":
     consume_and_process()
+    
