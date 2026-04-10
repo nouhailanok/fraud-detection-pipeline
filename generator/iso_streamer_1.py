@@ -121,7 +121,7 @@ def stream_csv(file_path, delay=0.1):
                     iso_msg = map_to_iso(row)
                     print(iso_msg)
 
-                    future = producer.send(TOPIC_NAME, value=iso_msg)
+                    future = producer.send(TOPIC_NAME, key=str(iso_msg["DE002_PAN"]).encode('utf-8'), value=iso_msg)
                     future.get(timeout=10)
                     time.sleep(delay)
 

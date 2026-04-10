@@ -1,97 +1,152 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 import numpy as np
 from pathlib import Path
 
 class FraudSequenceDataset(Dataset):
     """
-    Dataset PyTorch pour transformer des transactions 2D en séquences 3D (RNN/GRU).
+    Dataset PyTorch capable de scanner un dossier de batchs npy.
     Structure attendue de X : [PAN_HASH (colonne 0), feature1, ..., feature26]
     Structure attendue de y : [is_fraud]
     """
-    def __init__(self, x_path, y_path, sequence_length=5):
-        # 1. Vérification et chargement des données
-        x_path = Path(x_path)
-        y_path = Path(y_path)
-        
-        if not x_path.exists() or not y_path.exists():
-            raise FileNotFoundError(f"Fichiers introuvables : {x_path} ou {y_path}")
-            
-        # Chargement en float32 (standard pour PyTorch)
-        raw_X = np.load(x_path).astype(np.float32)
-        raw_y = np.load(y_path).astype(np.float32)
-        
+    def __init__(self, data_dir, sequence_length=5):
+        self.data_dir = Path(data_dir)
         self.sequence_length = sequence_length
         
-        # 2. Séparation de l'identifiant (Pivot) et des features (IA)
-        # La colonne 0 est le PAN_HASH inséré lors de l'ingestion
+        # 1. Scan et chargement de tous les batchs disponibles
+        # sorted() est CRUCIAL pour garder l'ordre des timestamps Kafka
+        x_files = sorted(list(self.data_dir.glob("X_batch_*.npy")))
+        y_files = sorted(list(self.data_dir.glob("y_batch_*.npy")))
+        
+        if not x_files:
+            raise FileNotFoundError(f"❌ Aucun fichier .npy trouvé dans {self.data_dir}")
+            
+        # Chargement et concaténation de tous les batchs
+        all_x = []
+        all_y = []
+        for x_f, y_f in zip(x_files, y_files):
+            all_x.append(np.load(x_f))
+            all_y.append(np.load(y_f))
+            
+        raw_X = np.vstack(all_x).astype(np.float32)
+        raw_y = np.vstack(all_y).astype(np.float32)
+        
+        # 2. Séparation ID (colonne 0) et Features (colonnes 1-26)
         self.user_ids = raw_X[:, 0] 
-        
-        # Les colonnes 1 à 26 sont les features réelles calculées par le Vectorizer
         self.features = raw_X[:, 1:] 
-        
-        # Labels (is_fraud)
-        self.y = raw_y
+        self.y = raw_y.flatten()
 
     def __len__(self):
-        # Le nombre total d'exemples est égal au nombre de lignes de features
         return len(self.features)
 
     def __getitem__(self, idx):
         """
-        Construit une séquence temporelle pour la transaction à l'index 'idx'.
+        Construit une séquence temporelle avec PADDING par utilisateur.
+        L'ordre temporel est préservé à l'intérieur de chaque user.
         """
         current_user = self.user_ids[idx]
         sequence = []
         
-        # On construit la fenêtre glissante en remontant dans le passé
-        # i va de (seq_len-1) jusqu'à 0
         for i in range(self.sequence_length - 1, -1, -1):
             target_idx = idx - i
             
-            # Logique de PADDING :
-            # On ajoute des zéros si :
-            # - On est au début du fichier (target_idx < 0)
-            # - L'identifiant change (c'est un autre client/carte)
+            # Si on dépasse le début ou si l'utilisateur change -> Padding Zéro
             if target_idx < 0 or self.user_ids[target_idx] != current_user:
-                # Padding avec un vecteur de zéros de la taille des features (26)
                 sequence.append(np.zeros(self.features.shape[1]))
             else:
-                # On ajoute la transaction réelle du même utilisateur
                 sequence.append(self.features[target_idx])
         
-        # 3. Conversion en Tenseurs PyTorch
-        # sequence devient (seq_len, 26) -> (5, 26)
         x_tensor = torch.tensor(np.stack(sequence), dtype=torch.float32)
-        
-        # y devient un tenseur de taille [1] pour être compatible avec les loss functions
         y_tensor = torch.tensor([self.y[idx]], dtype=torch.float32)
         
         return x_tensor, y_tensor
 
-def get_dataloader(x_path, y_path, batch_size=64, seq_len=5, shuffle=False):
+
+def get_split_dataloaders(data_dir, train_ratio=0.8, batch_size=64, seq_len=5, random_seed=42):
     """
-    Helper pour instancier le DataLoader Flower/PyTorch.
-    Note: shuffle=False est souvent préférable pour garder l'ordre temporel 
-    lors de la création des fichiers, mais shuffle=True est possible ici 
-    car chaque item porte déjà sa propre séquence d'historique.
+    Divise les données du nœud en Train/Test par UTILISATEUR.
+
+    - 80% des users  → Train  (toutes leurs transactions, ordre temporel préservé)
+    - 20% des users  → Test   (users jamais vus en train → zéro data leakage)
+
+    L'ordre temporel des transactions est préservé à l'intérieur de chaque user
+    grâce au sorted() lors du chargement des batchs Kafka.
     """
-    dataset = FraudSequenceDataset(x_path, y_path, sequence_length=seq_len)
-    
-    return DataLoader(
-        dataset, 
-        batch_size=batch_size, 
-        shuffle=shuffle, 
-        num_workers=0, # Garder à 0 sur Windows pour éviter les erreurs de multiprocessing
-        pin_memory=True # Accélère le transfert vers le GPU si disponible
+    full_dataset = FraudSequenceDataset(data_dir, sequence_length=seq_len)
+
+    # ------------------------------------------------------------------ #
+    # 1. Split des USERS (pas des transactions)                           #
+    # ------------------------------------------------------------------ #
+    unique_users = np.unique(full_dataset.user_ids)
+
+    # Shuffle reproductible des users
+    rng = np.random.default_rng(random_seed)
+    shuffled_users = rng.permutation(unique_users)
+
+    split_point      = int(len(shuffled_users) * train_ratio)
+    train_users      = set(shuffled_users[:split_point])   # 80% des users
+    test_users       = set(shuffled_users[split_point:])   # 20% des users
+
+    # ------------------------------------------------------------------ #
+    # 2. Collecte des indices de transactions par groupe                  #
+    #    L'ordre est déjà chronologique grâce au sorted() du Dataset     #
+    # ------------------------------------------------------------------ #
+    train_indices = []
+    test_indices  = []
+
+    for idx, user in enumerate(full_dataset.user_ids):
+        if user in train_users:
+            train_indices.append(idx)
+        else:
+            test_indices.append(idx)
+
+    # ------------------------------------------------------------------ #
+    # 3. Création des Subsets PyTorch                                     #
+    # ------------------------------------------------------------------ #
+    train_ds = Subset(full_dataset, train_indices)
+    test_ds  = Subset(full_dataset, test_indices)
+
+    # ------------------------------------------------------------------ #
+    # 4. DataLoaders                                                      #
+    #    - Train : shuffle=True  → mélange les transactions inter-users  #
+    #              (la séquence est auto-portée dans __getitem__)         #
+    #    - Test  : shuffle=False → évaluation stable et reproductible    #
+    # ------------------------------------------------------------------ #
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,   # OK : chaque item porte sa propre séquence
+        num_workers=0,
+        pin_memory=True
     )
 
-# --- ZONE DE TEST RAPIDE ---
+    test_loader = DataLoader(
+        test_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True
+    )
+
+    # ------------------------------------------------------------------ #
+    # 5. Logs de vérification                                             #
+    # ------------------------------------------------------------------ #
+    fraud_train = sum(full_dataset.y[i] for i in train_indices)
+    fraud_test  = sum(full_dataset.y[i] for i in test_indices)
+
+    print(f"✅ Split par users")
+    print(f"   Users  → Train : {len(train_users)} | Test : {len(test_users)}")
+    print(f"   Transactions → Train : {len(train_indices)} | Test : {len(test_indices)}")
+    print(f"   Fraudes → Train : {int(fraud_train)} ({100*fraud_train/len(train_indices):.2f}%)"
+          f" | Test : {int(fraud_test)} ({100*fraud_test/len(test_indices):.2f}%)")
+
+    return train_loader, test_loader
+
+
+# --- ZONE DE TEST ---
 if __name__ == "__main__":
-    # Remplace par tes vrais chemins pour tester
-    # test_loader = get_dataloader("data/node_1/X_batch.npy", "data/node_1/y_batch.npy")
-    # for x_seq, y_val in test_loader:
-    #     print(f"Forme du batch X: {x_seq.shape}") # Doit être [64, 5, 26]
-    #     print(f"Forme du batch y: {y_val.shape}") # Doit être [64, 1]
-    #     break
+    # Exemple d'usage :
+    # path = "data/node_1/tensors"
+    # tr_loader, te_loader = get_split_dataloaders(path, train_ratio=0.8)
+    # print(f"Batches Train : {len(tr_loader)} | Batches Test : {len(te_loader)}")
     pass

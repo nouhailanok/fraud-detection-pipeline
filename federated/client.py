@@ -2,7 +2,7 @@ import os
 import time
 import inspect
 from pathlib import Path
-from typing import Any, Optional, List, Tuple, Dict, Any
+from typing import Any, Optional, List
 
 
 import flwr as fl
@@ -16,7 +16,7 @@ from opacus.validators import ModuleValidator
 
 # 🔥 IMPORTS DE TON PROJET
 from models.fraud_rnn import FraudRNN
-from data.dataloader import get_dataloader
+from data.dataloader import get_split_dataloaders  # ✅ Nouveau dataloader
 
 
 # ============================
@@ -35,7 +35,6 @@ def set_model_parameters(model, parameters: List):
         p.data = torch.tensor(new_p, dtype=torch.float32).to(DEVICE)
 
 
-
 # ============================
 #  FLOWER CLIENT
 # ============================
@@ -52,7 +51,6 @@ class FlowerClient(fl.client.NumPyClient):
         # ==========================================
         # 🛠️ 1. RÉPARATION DU MODÈLE POUR OPACUS
         # ==========================================
-        # On fixe le modèle AVANT de créer l'optimiseur !
         self.model = ModuleValidator.fix(self.model)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
@@ -141,9 +139,10 @@ class FlowerClient(fl.client.NumPyClient):
                 total_loss += loss.item() * y.size(0)
 
         accuracy = correct / total if total > 0 else 0
-        loss = total_loss / total if total > 0 else 0
+        avg_loss = total_loss / total if total > 0 else 0
 
-        return loss, total, {"accuracy": accuracy}
+        return avg_loss, total, {"accuracy": accuracy}
+
 
 def _read_bytes(path_str: Optional[str]) -> Optional[bytes]:
     if not path_str:
@@ -155,9 +154,9 @@ def _read_bytes(path_str: Optional[str]) -> Optional[bytes]:
 
 
 def start_client_compatible(client: fl.client.NumPyClient, server_address: str) -> None:
-    root_cert = _read_bytes(os.getenv("FLOWER_CA_CERT"))
+    root_cert   = _read_bytes(os.getenv("FLOWER_CA_CERT"))
     client_cert = _read_bytes(os.getenv("FLOWER_CLIENT_CERT"))
-    client_key = _read_bytes(os.getenv("FLOWER_CLIENT_KEY"))
+    client_key  = _read_bytes(os.getenv("FLOWER_CLIENT_KEY"))
 
     start_client_fn = getattr(fl.client, "start_client", None)
     if start_client_fn is not None:
@@ -186,77 +185,67 @@ def start_client_compatible(client: fl.client.NumPyClient, server_address: str) 
     numpy_client_fn(**kwargs)
 
 
+# ============================
+# 🚀 MAIN
+# ============================
+
 def main() -> None:
-    client_id = os.getenv("CLIENT_ID", "1")
-    host = os.getenv("FLOWER_SERVER_HOST", "flower")
-    port = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
+    client_id     = os.getenv("CLIENT_ID", "1")
+    host          = os.getenv("FLOWER_SERVER_HOST", "flower")
+    port          = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
     server_address = f"{host}:{port}"
     retry_seconds = int(os.getenv("FL_CLIENT_RETRY_SECONDS", "10"))
-    continuous = os.getenv("FL_CLIENT_CONTINUOUS", "true").lower() == "true"
-    #server_address = os.getenv("FLOWER_SERVER", "localhost:8080")
+    continuous    = os.getenv("FL_CLIENT_CONTINUOUS", "true").lower() == "true"
 
-    
     print(f"🚀 Démarrage de la BANQUE {client_id} sur {DEVICE}")
 
+    # ------------------------------------------------------------------ #
+    # 📂 Dossier tensors du nœud                                          #
+    # get_split_dataloaders scanne tous les X_batch_*.npy / y_batch_*.npy #
+    # et fait le split train/test par users automatiquement               #
+    # ------------------------------------------------------------------ #
+    data_dir = Path(f"data/node_{client_id}/tensors")
 
-    # chemins des données
-    # data_dir = Path("data/tensors")
+    if not data_dir.exists() or not any(data_dir.glob("X_batch_*.npy")):
+        raise FileNotFoundError(
+            f"❌ Aucun tensor trouvé dans {data_dir} pour le nœud {client_id}. "
+            f"L'ingestion Kafka a-t-elle bien tourné ?"
+        )
 
-    # x_train_path = f"data/node_{client_id}/tensors"
-    # y_train_path = f"data/node_{client_id}/tensors"
-    # x_test_path = f"data/node_{client_id}/tensors"
-    # y_test_path = f"data/node_{client_id}/tensors"
+    print(f"📂 Chargement des tensors depuis : {data_dir}")
 
-    # 📂 chemins des fichiers de données
-    x_train_path = f"data/node_{client_id}/tensors/X_train_*.npy"
-    y_train_path = f"data/node_{client_id}/tensors/y_train_*.npy"
-    x_test_path = f"data/node_{client_id}/tensors/X_test_*.npy"
-    y_test_path = f"data/node_{client_id}/tensors/y_test_*.npy"
+    # ✅ Un seul appel → train_loader et val_loader prêts
+    train_loader, val_loader = get_split_dataloaders(
+        data_dir=data_dir,
+        train_ratio=0.8,
+        batch_size=64,
+        seq_len=5,
+    )
 
-    # x_path = data_dir / f"X_{client_id}.npy"
-    # y_path = data_dir / f"y_{client_id}.npy"
-
-
-
-    if not x_train_path.exists() or not y_train_path.exists() or not x_test_path.exists() or not y_test_path.exists():
-        raise FileNotFoundError(f"❌ Données introuvables pour {client_id}")
-
-    print(f"📂 Chargement des données pour {client_id}")
-
-    # DataLoader
-    train_loader = get_dataloader(x_train_path, y_train_path, batch_size=64, seq_len=5, shuffle=True)
-    val_loader = get_dataloader(x_test_path, y_test_path, batch_size=64, seq_len=5, shuffle=False)
-
-    print(f"[FL-CLIENT] {client_id} -> {server_address}")
-
+    print(f"[FL-CLIENT] {client_id} → {server_address}")
 
     # Modèle
-    # model = FraudRNN(input_dim=26, hidden_dim=64)
     model = FraudRNN(input_dim=26, hidden_dim=128, num_layers=2, dropout_rate=0.2)
 
     # Client Flower
     client = FlowerClient(model, train_loader, val_loader)
 
-
     print(f"🚀 Connexion au serveur Flower : {server_address}")
-
 
     while True:
         try:
             print(f"🔗 Tentative de connexion à {server_address}...")
             start_client_compatible(client, server_address)
             print("[FL-CLIENT] Session terminée proprement")
-            break # Si on finit proprement, on sort de la boucle
+            break
         except Exception as exc:
             print(f"[FL-CLIENT] Erreur de transport: {exc}")
+
         if not continuous:
             break
 
-        print(f"[FL-CLIENT] Nouvelle tentative dans {retry_seconds}s...")
-        print(client_id)
+        print(f"[FL-CLIENT] Nouvelle tentative dans {retry_seconds}s... (nœud {client_id})")
         time.sleep(retry_seconds)
-
-        
 
 
 if __name__ == "__main__":
