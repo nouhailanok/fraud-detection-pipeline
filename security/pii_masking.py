@@ -11,51 +11,66 @@ def generate_salt(length: int = 16) -> str:
     """Génère un sel dynamique cryptographique."""
     return secrets.token_hex(length)
 
+
 def mask_pii(transaction_data: dict) -> dict:
     """
     Masque les données sensibles (PII) d'une transaction JSON (dictionnaire).
-    - Hache le PAN (Primary Account Number) - par défaut DE002_PAN
-    - Supprime les données en clair (Noms, Prénoms)
-    Note: Les champs ISO ne sont pas figés, on vérifie leur présence d'abord.
+
+    Deux hashes coexistent pour deux usages distincts :
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  DE002_PAN      → SHA256(cc_num)            STABLE             │
+    │                   Utilisé par l'enrichisseur et le ML.         │
+    │                   Permet de reconnaître le même client          │
+    │                   d'une transaction à l'autre.                  │
+    │                   Ne contient pas le vrai numéro de carte.      │
+    ├─────────────────────────────────────────────────────────────────┤
+    │  DE002_PAN_AUDIT → SHA256(sel_aléatoire + cc_num)  SALÉ        │
+    │                    Utilisé uniquement pour les logs d'audit.    │
+    │                    Irréversible, résiste aux Rainbow Tables.     │
+    │                    Change à chaque transaction → non traçable.  │
+    └─────────────────────────────────────────────────────────────────┘
     """
     masked_data = transaction_data.copy()
-    
-    # 1. Hachage du PAN (ex: DE002_PAN)
+
     pan_field = "DE002_PAN"
     if pan_field in masked_data:
         raw_pan = str(masked_data[pan_field])
-        salt = generate_salt()
-        
-        # Concaténation et hachage (SHA-256)
-        pan_with_salt = (salt + raw_pan).encode('utf-8')
-        hashed_pan = hashlib.sha256(pan_with_salt).hexdigest()
-        
-        # Remplacement par la version hachée
-        masked_data[pan_field] = hashed_pan
-        # On pourrait aussi stocker le sel de manière sécurisée si on doit un jour vérifier le hash.
-        masked_data["DE002_PAN_SALT"] = salt 
-        
-        # Nettoyage de la mémoire (suppression explicite de la variable en clair)
-        del raw_pan
-        del pan_with_salt
 
-    # 2. Suppression des champs PII nominatifs (Noms, Prénoms, etc.)
-    # Liste flexible des champs potentiellement identifiants pouvant fuiter du dataset source
-    pii_fields_to_remove = ["first", "last", "nom", "prenom", "customer_name", "cardholder_name"]
-    
+        # ── 1. HASH STABLE pour le ML ────────────────────────────────────────
+        # SHA256 du cc_num brut, sans sel → toujours identique pour le même client
+        # Le GRU peut ainsi regrouper les transactions d'un même utilisateur
+        stable_hash = hashlib.sha256(raw_pan.encode("utf-8")).hexdigest()
+
+        # ── 2. HASH SALÉ pour l'audit sécurité ──────────────────────────────
+        # Sel aléatoire cryptographique → résultat différent à chaque appel
+        # Protège contre les attaques Rainbow Table sur les logs d'audit
+        salt        = generate_salt()
+        audit_hash  = hashlib.sha256(
+            (salt + raw_pan).encode("utf-8")
+        ).hexdigest()
+
+        # ── 3. Remplacement dans le dictionnaire ─────────────────────────────
+        masked_data[pan_field]         = stable_hash   # ← lu par enrichisseur + ML
+        masked_data["DE002_PAN_SALT"]  = salt          # ← conservé pour vérification audit
+        masked_data["DE002_PAN_AUDIT"] = audit_hash    # ← utilisé uniquement dans les logs
+
+        # ── 4. Nettoyage mémoire ─────────────────────────────────────────────
+        del raw_pan
+
+    # ── Suppression des champs PII nominatifs ────────────────────────────────
+    pii_fields_to_remove = [
+        "first", "last", "nom", "prenom", "customer_name", "cardholder_name"
+    ]
     for field in pii_fields_to_remove:
         if field in masked_data:
             del masked_data[field]
-            
-    # Récupération des identifiants (STAN / RRN) pour le registre d'audit
+
+    # ── Audit ─────────────────────────────────────────────────────────────────
     stan = masked_data.get("DE011_STAN", "N/A")
-    rrn = masked_data.get("DE037_RRN", "N/A")
-    
-    # Forcer le garbage collector pour éliminer les traces en RAM
+    rrn  = masked_data.get("DE037_RRN",  "N/A")
+
     gc.collect()
-    
     auditor.log_success(stan=stan, rrn=rrn)
-    # Log plus fin (optionnel, pour debug)
-    # audit_logger.debug("Transaction anonymisée avec succès.")
-    
+
     return masked_data
