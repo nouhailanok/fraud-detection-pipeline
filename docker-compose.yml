@@ -376,7 +376,7 @@ services:
     restart: unless-stopped
     depends_on:
       - kafka
-      - flower_server
+      # - flower_server
     environment:
       CLIENT_ID: 2
       FLOWER_SERVER_HOST: flower
@@ -406,7 +406,7 @@ services:
     restart: unless-stopped
     depends_on:
       - kafka
-      - flower_server
+      # - flower_server
     environment:
       CLIENT_ID: 3
       FLOWER_SERVER_HOST: flower
@@ -436,7 +436,7 @@ services:
     restart: unless-stopped
     depends_on:
       - kafka
-      - flower_server
+      # - flower_server
     environment:
       CLIENT_ID: 4
       FLOWER_SERVER_HOST: flower
