@@ -43,6 +43,12 @@ class FraudSequenceDataset(Dataset):
         """
         Construit une séquence temporelle avec PADDING par utilisateur.
         L'ordre temporel est préservé à l'intérieur de chaque user.
+
+        Même les items du test_loader bénéficient de l'historique train
+        via le full_dataset sous-jacent : quand __getitem__ remonte dans
+        le passé (idx - i), il accède aux transactions d'entraînement du
+        même user → le RNN voit bien les habitudes passées pour prédire
+        les transactions futures.
         """
         current_user = self.user_ids[idx]
         sequence = []
@@ -62,60 +68,65 @@ class FraudSequenceDataset(Dataset):
         return x_tensor, y_tensor
 
 
-def get_split_dataloaders(data_dir, train_ratio=0.8, batch_size=64, seq_len=5, random_seed=42):
+def get_split_dataloaders(data_dir, train_ratio=0.8, batch_size=64, seq_len=5):
     """
-    Divise les données du nœud en Train/Test par UTILISATEUR.
+    Divise les données du nœud en Train/Test par SPLIT TEMPOREL PAR USER.
 
-    - 80% des users  → Train  (toutes leurs transactions, ordre temporel préservé)
-    - 20% des users  → Test   (users jamais vus en train → zéro data leakage)
+    Pour chaque utilisateur :
+        - 80% de ses transactions les plus anciennes  → Train
+        - 20% de ses transactions les plus récentes   → Test
 
-    L'ordre temporel des transactions est préservé à l'intérieur de chaque user
-    grâce au sorted() lors du chargement des batchs Kafka.
+    Avantages pour la détection de fraude :
+        - Le RNN est entraîné sur les habitudes passées du user
+        - Le test simule une détection en conditions réelles (futur strict)
+        - Les séquences du test remontent dans le passé via __getitem__
+          → le contexte historique (train) est disponible pour le RNN
+        - Zéro data leakage (le futur n'est jamais vu en train)
     """
     full_dataset = FraudSequenceDataset(data_dir, sequence_length=seq_len)
 
     # ------------------------------------------------------------------ #
-    # 1. Split des USERS (pas des transactions)                           #
-    # ------------------------------------------------------------------ #
-    unique_users = np.unique(full_dataset.user_ids)
-
-    # Shuffle reproductible des users
-    rng = np.random.default_rng(random_seed)
-    shuffled_users = rng.permutation(unique_users)
-
-    split_point      = int(len(shuffled_users) * train_ratio)
-    train_users      = set(shuffled_users[:split_point])   # 80% des users
-    test_users       = set(shuffled_users[split_point:])   # 20% des users
-
-    # ------------------------------------------------------------------ #
-    # 2. Collecte des indices de transactions par groupe                  #
-    #    L'ordre est déjà chronologique grâce au sorted() du Dataset     #
+    # 1. Split TEMPOREL par user                                          #
+    #    Les données sont déjà triées chronologiquement grâce au         #
+    #    sorted() sur les timestamps Kafka dans le Dataset                #
     # ------------------------------------------------------------------ #
     train_indices = []
     test_indices  = []
 
-    for idx, user in enumerate(full_dataset.user_ids):
-        if user in train_users:
-            train_indices.append(idx)
-        else:
-            test_indices.append(idx)
+    unique_users = np.unique(full_dataset.user_ids)
+
+    for user in unique_users:
+        # Tous les index de ce user, déjà dans l'ordre chronologique
+        user_indices = np.where(full_dataset.user_ids == user)[0]
+
+        # Point de coupure temporel
+        split_point = int(len(user_indices) * train_ratio)
+
+        # Garde-fou : si un user a très peu de transactions
+        if split_point == 0:
+            split_point = 1  # au minimum 1 transaction en train
+        if split_point >= len(user_indices):
+            split_point = len(user_indices) - 1  # au minimum 1 transaction en test
+
+        # 80% passé → train | 20% futur → test
+        train_indices.extend(user_indices[:split_point].tolist())
+        test_indices.extend(user_indices[split_point:].tolist())
 
     # ------------------------------------------------------------------ #
-    # 3. Création des Subsets PyTorch                                     #
+    # 2. Création des Subsets PyTorch                                     #
+    #    Les deux Subsets partagent le même full_dataset                  #
+    #    → __getitem__ peut remonter dans le passé (train) depuis le test #
     # ------------------------------------------------------------------ #
     train_ds = Subset(full_dataset, train_indices)
     test_ds  = Subset(full_dataset, test_indices)
 
     # ------------------------------------------------------------------ #
-    # 4. DataLoaders                                                      #
-    #    - Train : shuffle=True  → mélange les transactions inter-users  #
-    #              (la séquence est auto-portée dans __getitem__)         #
-    #    - Test  : shuffle=False → évaluation stable et reproductible    #
+    # 3. DataLoaders                                                      #
     # ------------------------------------------------------------------ #
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
-        shuffle=True,   # OK : chaque item porte sa propre séquence
+        shuffle=False,
         num_workers=0,
         pin_memory=True
     )
@@ -129,13 +140,13 @@ def get_split_dataloaders(data_dir, train_ratio=0.8, batch_size=64, seq_len=5, r
     )
 
     # ------------------------------------------------------------------ #
-    # 5. Logs de vérification                                             #
+    # 4. Logs de vérification                                             #
     # ------------------------------------------------------------------ #
     fraud_train = sum(full_dataset.y[i] for i in train_indices)
     fraud_test  = sum(full_dataset.y[i] for i in test_indices)
 
-    print(f"✅ Split par users")
-    print(f"   Users  → Train : {len(train_users)} | Test : {len(test_users)}")
+    print(f"✅ Split temporel par user (80% passé / 20% futur)")
+    print(f"   Users total : {len(unique_users)}")
     print(f"   Transactions → Train : {len(train_indices)} | Test : {len(test_indices)}")
     print(f"   Fraudes → Train : {int(fraud_train)} ({100*fraud_train/len(train_indices):.2f}%)"
           f" | Test : {int(fraud_test)} ({100*fraud_test/len(test_indices):.2f}%)")
