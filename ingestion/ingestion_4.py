@@ -25,26 +25,26 @@ class CustomDataSchema(BaseModel):
     long: float
     merch_lat: float
     merch_long: float
-    merchant_name: str
+    merchant_name: str     # <-- AJOUT : Nom du magasin
     dob: str
 
 
 # Schéma principal ISO 8583 avec validation
 class ISOTransaction(BaseModel):
-    message_type: str = Field(...,pattern="^0200$")
-    DE002_PAN: str = Field(..., min_length=8, max_length=19, pattern=r"^\d+$")
+    message_type: str = Field(...,pattern="^0200$")  # Doit être "0200"
+    DE002_PAN: str = Field(..., min_length=8, max_length=19, pattern=r"^\d+$")  # minimum 8 et macimum 9 chiffres
     DE003_ProcessingCode: str = "000000"
-    DE004_Amount: str = Field(..., min_length=12, max_length=12)
-    DE007_DateTime: str = Field(..., min_length=10, max_length=10)
+    DE004_Amount: str = Field(..., min_length=12, max_length=12)  # Strictement 12 digits
+    DE007_DateTime: str = Field(..., min_length=10, max_length=10)  # MMDDhhmmss
     DE011_STAN: str
     DE018_MCC: str
     DE037_RRN: str
     DE043_MerchantLoc: str
     DE049_Currency: str = "840"
-    DE123_CustomData: CustomDataSchema
+    DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
 TOPIC_NAME = 'topic_raw_transactions_4'
-BOOTSTRAP_SERVERS_SSL = ['kafka:9093']
+BOOTSTRAP_SERVERS_SSL = ['kafka:9093']  # ⚠️ Port SSL pour mTLS
 CONSUMER_GROUP = 'fraud-detection-group'
 
 # Chemins vers les certificats mTLS
@@ -68,6 +68,7 @@ def consume_and_process():
     vectorizer = TransactionVectorizer()
     X_batch = []
     y_batch = []
+    # BATCH_SIZE = 1000
     BATCH_SIZE = 1000
     # --------------------------------------
 
@@ -77,6 +78,12 @@ def consume_and_process():
                 consumer = KafkaConsumer(
                     TOPIC_NAME,
                     bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
+                    # # Added for fast npy
+                    # fetch_min_bytes=1048576,      # 1 Mo minimum avant de répondre
+                    # fetch_max_wait_ms=500,        # Attendre max 0.5s pour remplir le Mo
+                    # max_partition_fetch_bytes=5242880, # 5 Mo max par partition
+                    # max_poll_records=2000,        # Récupérer 2000 messages par "poll"
+                    # # Added for fast npy
                     security_protocol='SSL',
                     ssl_cafile=CA_CERT,
                     ssl_certfile=CLIENT_CERT,
@@ -84,7 +91,8 @@ def consume_and_process():
                     ssl_check_hostname=False,
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     group_id=CONSUMER_GROUP,
-                    auto_offset_reset='latest',
+                    auto_offset_reset='earliest',
+                    # auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
                     enable_auto_commit=True,
                     max_poll_records=500,
                     session_timeout_ms=30000
@@ -101,6 +109,7 @@ def consume_and_process():
         
         audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}' avec mTLS (port 9093)")
         print(f"[INGESTION] Connecté via mTLS au topic '{TOPIC_NAME}'...")
+        print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
         
         # Boucle de consommation
         for message in consumer:
@@ -108,17 +117,21 @@ def consume_and_process():
                 transaction = message.value
                 transaction_count += 1
                 
-                # 1. Validation Pydantic
+                # Valider le schéma ISO 8583 avec Pydantic
                 try:
-                    ISOTransaction.model_validate(transaction)
+                    validated_transaction = ISOTransaction.model_validate(transaction)
                     audit_logger.info(f"✅ Transaction #{transaction_count} validée contre le schéma ISO 8583")
                 except ValidationError as e:
                     audit_logger.error(
                         f"❌ Erreur validation schéma ISO 8583 - Transaction #{transaction_count}: {e}"
                     )
+                    print(f"\n[❌ VALIDATION ERROR - Transaction #{transaction_count}]")
+                    print(f"   Erreurs détectées:")
+                    for error in e.errors():
+                        print(f"   - {error['loc']}: {error['msg']}")
                     continue
                 
-                # 2. Masquage PII
+                # Appliquer le masquage PII (sur les données validées)
                 masked_transaction = mask_pii(transaction)
                 custom_data = transaction.get('DE123_CustomData', {})
                 
@@ -145,8 +158,9 @@ def consume_and_process():
                 X, y = vectorizer.vectorize(enriched_json)
 
                 # --- 🛠️ MODIFICATION : AJOUT DE L'IDENTIFIANT ---
+                # On convertit le PAN_HASH (string hex) en identifiant numérique stable
                 pan_hex = enriched_json["PAN_HASH"]
-                pan_id = float(int(pan_hex[:12], 16))
+                pan_id = float(int(pan_hex[:12], 16)) # Utilisation des 12 premiers caractères hex
 
                 # On insère l'ID à l'index 0. X passe de 26 à 27 colonnes.
                 X_with_id = np.insert(X, 0, pan_id) 
@@ -190,3 +204,4 @@ def consume_and_process():
 
 if __name__ == "__main__":
     consume_and_process()
+    
