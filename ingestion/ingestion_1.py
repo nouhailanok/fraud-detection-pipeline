@@ -68,6 +68,7 @@ def consume_and_process():
     vectorizer = TransactionVectorizer()
     X_batch = []
     y_batch = []
+    # BATCH_SIZE = 1000
     BATCH_SIZE = 1000
     # --------------------------------------
 
@@ -77,6 +78,12 @@ def consume_and_process():
                 consumer = KafkaConsumer(
                     TOPIC_NAME,
                     bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
+                    # # Added for fast npy
+                    # fetch_min_bytes=1048576,      # 1 Mo minimum avant de répondre
+                    # fetch_max_wait_ms=500,        # Attendre max 0.5s pour remplir le Mo
+                    # max_partition_fetch_bytes=5242880, # 5 Mo max par partition
+                    # max_poll_records=2000,        # Récupérer 2000 messages par "poll"
+                    # # Added for fast npy
                     security_protocol='SSL',
                     ssl_cafile=CA_CERT,
                     ssl_certfile=CLIENT_CERT,
@@ -84,8 +91,8 @@ def consume_and_process():
                     ssl_check_hostname=False,
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     group_id=CONSUMER_GROUP,
-                    # auto_offset_reset='earliest',
-                    auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
+                    auto_offset_reset='earliest',
+                    # auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
                     enable_auto_commit=True,
                     max_poll_records=500,
                     session_timeout_ms=30000
