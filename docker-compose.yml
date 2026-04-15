@@ -281,56 +281,56 @@ services:
       - ./security/certs/gen_1.crt:/app/security/certs/client.crt:ro
       - ./security/certs/gen_1.key:/app/security/certs/client.key:ro
 
-  generator_2:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "generator/iso_streamer_2.py"]
-    container_name: node_generator_2
-    depends_on:
-      - kafka
-    volumes:
-      - .:/app
-      - ./security/certs/gen_2.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/gen_2.key:/app/security/certs/client.key:ro
+  # generator_2:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "generator/iso_streamer_2.py"]
+  #   container_name: node_generator_2
+  #   depends_on:
+  #     - kafka
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/gen_2.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/gen_2.key:/app/security/certs/client.key:ro
 
-  generator_3:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "generator/iso_streamer_3.py"]
-    container_name: node_generator_3
-    depends_on:
-      - kafka
-    volumes:
-      - .:/app
-      - ./security/certs/gen_3.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/gen_3.key:/app/security/certs/client.key:ro
+  # generator_3:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "generator/iso_streamer_3.py"]
+  #   container_name: node_generator_3
+  #   depends_on:
+  #     - kafka
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/gen_3.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/gen_3.key:/app/security/certs/client.key:ro
 
-  generator_4:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "generator/iso_streamer_4.py"]
-    container_name: node_generator_4
-    depends_on:
-      - kafka
-    volumes:
-      - .:/app
-      - ./security/certs/gen_4.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/gen_4.key:/app/security/certs/client.key:ro
+  # generator_4:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "generator/iso_streamer_4.py"]
+  #   container_name: node_generator_4
+  #   depends_on:
+  #     - kafka
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/gen_4.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/gen_4.key:/app/security/certs/client.key:ro
 
   # --- LES 4 PROCESSEURS D'INGESTION ---
   ingestion_processor_1:
@@ -346,7 +346,7 @@ services:
     restart: unless-stopped
     depends_on:
       - kafka
-      - flower_server
+      # - flower_server
     environment:
       CLIENT_ID: 1
       FLOWER_SERVER_HOST: flower
@@ -362,95 +362,95 @@ services:
       - ./security/certs/ing_1.crt:/app/security/certs/client.crt:ro
       - ./security/certs/ing_1.key:/app/security/certs/client.key:ro
 
-  ingestion_processor_2:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "ingestion/ingestion_2.py"]
-    container_name: node_ingestion_2
-    command: [ "python", "federated/client.py" ]
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - flower_server
-    environment:
-      CLIENT_ID: 2
-      FLOWER_SERVER_HOST: flower
-      FLOWER_SERVER_PORT: "8080"
-      FLOWER_CA_CERT: /app/security/certs/ca.crt
-      FLOWER_CLIENT_CERT: /app/security/certs/client.crt
-      FLOWER_CLIENT_KEY: /app/security/certs/client.key
-      FL_MAX_LOCAL_ROWS: "4000"
-      FL_CLIENT_CONTINUOUS: "true"
-      FL_CLIENT_RETRY_SECONDS: "8"
-    volumes:
-      - .:/app
-      - ./security/certs/ing_2.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/ing_2.key:/app/security/certs/client.key:ro
+  # ingestion_processor_2:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "ingestion/ingestion_2.py"]
+  #   container_name: node_ingestion_2
+  #   command: [ "python", "federated/client.py" ]
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - kafka
+  #     - flower_server
+  #   environment:
+  #     CLIENT_ID: 2
+  #     FLOWER_SERVER_HOST: flower
+  #     FLOWER_SERVER_PORT: "8080"
+  #     FLOWER_CA_CERT: /app/security/certs/ca.crt
+  #     FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+  #     FLOWER_CLIENT_KEY: /app/security/certs/client.key
+  #     FL_MAX_LOCAL_ROWS: "4000"
+  #     FL_CLIENT_CONTINUOUS: "true"
+  #     FL_CLIENT_RETRY_SECONDS: "8"
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/ing_2.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/ing_2.key:/app/security/certs/client.key:ro
 
-  ingestion_processor_3:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "ingestion/ingestion_3.py"]
-    container_name: node_ingestion_3
-    command: [ "python", "federated/client.py" ]
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - flower_server
-    environment:
-      CLIENT_ID: 3
-      FLOWER_SERVER_HOST: flower
-      FLOWER_SERVER_PORT: "8080"
-      FLOWER_CA_CERT: /app/security/certs/ca.crt
-      FLOWER_CLIENT_CERT: /app/security/certs/client.crt
-      FLOWER_CLIENT_KEY: /app/security/certs/client.key
-      FL_MAX_LOCAL_ROWS: "4000"
-      FL_CLIENT_CONTINUOUS: "true"
-      FL_CLIENT_RETRY_SECONDS: "8"
-    volumes:
-      - .:/app
-      - ./security/certs/ing_3.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/ing_3.key:/app/security/certs/client.key:ro
+  # ingestion_processor_3:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "ingestion/ingestion_3.py"]
+  #   container_name: node_ingestion_3
+  #   command: [ "python", "federated/client.py" ]
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - kafka
+  #     - flower_server
+  #   environment:
+  #     CLIENT_ID: 3
+  #     FLOWER_SERVER_HOST: flower
+  #     FLOWER_SERVER_PORT: "8080"
+  #     FLOWER_CA_CERT: /app/security/certs/ca.crt
+  #     FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+  #     FLOWER_CLIENT_KEY: /app/security/certs/client.key
+  #     FL_MAX_LOCAL_ROWS: "4000"
+  #     FL_CLIENT_CONTINUOUS: "true"
+  #     FL_CLIENT_RETRY_SECONDS: "8"
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/ing_3.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/ing_3.key:/app/security/certs/client.key:ro
 
-  ingestion_processor_4:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.9-slim
-        WORKDIR /app
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        CMD ["python", "ingestion/ingestion_4.py"]
-    container_name: node_ingestion_4
-    command: [ "python", "federated/client.py" ]
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - flower_server
-    environment:
-      CLIENT_ID: 4
-      FLOWER_SERVER_HOST: flower
-      FLOWER_SERVER_PORT: "8080"
-      FLOWER_CA_CERT: /app/security/certs/ca.crt
-      FLOWER_CLIENT_CERT: /app/security/certs/client.crt
-      FLOWER_CLIENT_KEY: /app/security/certs/client.key
-      FL_MAX_LOCAL_ROWS: "4000"
-      FL_CLIENT_CONTINUOUS: "true"
-      FL_CLIENT_RETRY_SECONDS: "8"
-    volumes:
-      - .:/app
-      - ./security/certs/ing_4.crt:/app/security/certs/client.crt:ro
-      - ./security/certs/ing_4.key:/app/security/certs/client.key:ro
+  # ingestion_processor_4:
+  #   build:
+  #     context: .
+  #     dockerfile_inline: |
+  #       FROM python:3.9-slim
+  #       WORKDIR /app
+  #       COPY requirements.txt .
+  #       RUN pip install --no-cache-dir -r requirements.txt
+  #       CMD ["python", "ingestion/ingestion_4.py"]
+  #   container_name: node_ingestion_4
+  #   command: [ "python", "federated/client.py" ]
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - kafka
+  #     - flower_server
+  #   environment:
+  #     CLIENT_ID: 4
+  #     FLOWER_SERVER_HOST: flower
+  #     FLOWER_SERVER_PORT: "8080"
+  #     FLOWER_CA_CERT: /app/security/certs/ca.crt
+  #     FLOWER_CLIENT_CERT: /app/security/certs/client.crt
+  #     FLOWER_CLIENT_KEY: /app/security/certs/client.key
+  #     FL_MAX_LOCAL_ROWS: "4000"
+  #     FL_CLIENT_CONTINUOUS: "true"
+  #     FL_CLIENT_RETRY_SECONDS: "8"
+  #   volumes:
+  #     - .:/app
+  #     - ./security/certs/ing_4.crt:/app/security/certs/client.crt:ro
+  #     - ./security/certs/ing_4.key:/app/security/certs/client.key:ro
 
 networks:
   default:
