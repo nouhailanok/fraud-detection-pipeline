@@ -347,6 +347,7 @@ services:
     depends_on:
       - kafka
       # - flower_server
+      # - flower_server
     environment:
       CLIENT_ID: 1
       FLOWER_SERVER_HOST: flower
