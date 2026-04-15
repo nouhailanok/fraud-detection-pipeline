@@ -43,11 +43,17 @@ import inspect
 from pathlib import Path
 from typing import Any, Optional, List
 
+import numpy as np
 import flwr as fl
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from sklearn.metrics import (
+    recall_score, precision_score, f1_score,
+    roc_auc_score, average_precision_score,
+    confusion_matrix,
+)
 from opacus import PrivacyEngine
 
 # ── Imports du projet ────────────────────────────────────────────────────────
@@ -92,10 +98,11 @@ def set_model_parameters(model, parameters: List):
 # ============================================================================
 
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, model, train_loader, val_loader):
+    def __init__(self, model, train_loader, val_loader, client_id: str = "1"):
         self.model        = model.to(DEVICE)
         self.train_loader = train_loader
         self.val_loader   = val_loader
+        self.client_id    = client_id
 
         # CHANGEMENT 3 : pos_weight ajouté — aligné avec train_local.py
         pos_weight       = torch.tensor([POS_WEIGHT], dtype=torch.float32).to(DEVICE)
@@ -176,35 +183,132 @@ class FlowerClient(fl.client.NumPyClient):
             {"epsilon": float(epsilon), "train_loss": avg_loss},
         )
 
-    # ── Évaluation locale ─────────────────────────────────────────────────────
+    # ── Évaluation locale — identique à train_local.py ──────────────────────
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         self.model.eval()
 
+        round_num  = config.get("round", "?")
         total_loss = 0.0
-        correct    = 0
-        total      = 0
+        all_preds, all_targets, all_probs = [], [], []
 
         with torch.no_grad():
             for x, y in self.val_loader:
                 x, y = x.to(DEVICE), y.to(DEVICE)
 
-                # CHANGEMENT 7 : .float() pour éviter NaN avec pos_weight FP16
                 logits = self.model(x).float()
                 loss   = self.criterion(logits, y.float())
 
                 probs  = torch.sigmoid(logits)
                 preds  = (probs > 0.5).float()
 
-                correct    += (preds == y).sum().item()
-                total      += y.size(0)
-                total_loss += loss.item() * y.size(0)
+                total_loss  += loss.item() * y.size(0)
+                all_probs.extend(probs.cpu().numpy())
+                all_preds.extend(preds.cpu().numpy())
+                all_targets.extend(y.cpu().numpy())
 
-        accuracy = correct / total    if total > 0 else 0.0
-        avg_loss = total_loss / total if total > 0 else 0.0
+        n          = len(all_targets)
+        avg_loss   = total_loss / n if n > 0 else 0.0
+        all_targets = np.array(all_targets)
+        all_preds   = np.array(all_preds)
+        all_probs   = np.array(all_probs)
 
-        return avg_loss, total, {"accuracy": accuracy}
+        # ── Métriques détaillées (comme train_local.py) ───────────────────────
+        accuracy  = (all_preds == all_targets).mean()
+        recall    = recall_score(all_targets, all_preds,    pos_label=1, zero_division=0)
+        precision = precision_score(all_targets, all_preds, pos_label=1, zero_division=0)
+        f1        = f1_score(all_targets, all_preds,        pos_label=1, zero_division=0)
+
+        try:
+            roc_auc = roc_auc_score(all_targets, all_probs)
+            pr_auc  = average_precision_score(all_targets, all_probs)
+        except ValueError:
+            roc_auc = pr_auc = 0.0
+
+        # ── Matrice de confusion ──────────────────────────────────────────────
+        cm = confusion_matrix(all_targets, all_preds)
+        tn, fp, fn, tp = cm.ravel() if cm.shape == (2, 2) else (0, 0, 0, 0)
+
+        # ── Seuil optimal calibré sur val (max F1 fraude) ────────────────────
+        best_f1_opt, best_thresh = 0.0, 0.5
+        for t in np.arange(0.05, 0.95, 0.01):
+            preds_t = (all_probs >= t).astype(float)
+            f1_t    = f1_score(all_targets, preds_t, pos_label=1, zero_division=0)
+            if f1_t > best_f1_opt:
+                best_f1_opt, best_thresh = f1_t, t
+
+        preds_opt = (all_probs >= best_thresh).astype(float)
+        cm_opt    = confusion_matrix(all_targets, preds_opt)
+        tn_o, fp_o, fn_o, tp_o = cm_opt.ravel() if cm_opt.shape == (2,2) else (0,0,0,0)
+
+        # ── Rapport console (nœud) ────────────────────────────────────────────
+        print(f"\n{'═'*52}")
+        print(f"  📊  Nœud {self.client_id} — Évaluation Round {round_num}")
+        print(f"{'═'*52}")
+        print(f"  Transactions : {n:,}  |  Fraudes : {int(all_targets.sum())}")
+        print(f"{'─'*52}")
+        print(f"  Métriques globales (seuil 0.5)")
+        print(f"    Accuracy  : {accuracy:.4f}")
+        print(f"    Loss      : {avg_loss:.4f}")
+        print(f"    Recall    : {recall:.4f}")
+        print(f"    Precision : {precision:.4f}")
+        print(f"    F1-fraude : {f1:.4f}")
+        print(f"    AUC-ROC   : {roc_auc:.4f}")
+        print(f"    PR-AUC    : {pr_auc:.4f}")
+        print(f"{'─'*52}")
+        print(f"  Matrice de confusion (seuil 0.5)")
+        print(f"    VP (fraudes détectées) : {tp:>6,}  / {int(all_targets.sum())}")
+        print(f"    FP (fausses alertes)   : {fp:>6,}  ⚠️")
+        print(f"    FN (fraudes manquées)  : {fn:>6,}  🚨")
+        print(f"    VN (légitimes OK)      : {tn:>6,}")
+        print(f"{'─'*52}")
+        print(f"  Seuil optimal : {best_thresh:.2f}  (F1={best_f1_opt:.4f})")
+        print(f"    VP : {tp_o:,}  |  FP : {fp_o:,}  |  FN : {fn_o:,}")
+        recall_opt = tp_o / max(tp_o + fn_o, 1)
+        prec_opt   = tp_o / max(tp_o + fp_o, 1)
+        print(f"    Rappel    : {recall_opt:.2%}")
+        print(f"    Précision : {prec_opt:.2%}")
+        print(f"{'═'*52}\n")
+
+        # ── Sauvegarde locale du round ────────────────────────────────────────
+        self._save_round_log(round_num, {
+            "loss": avg_loss, "accuracy": accuracy,
+            "recall": recall, "precision": precision, "f1": f1,
+            "roc_auc": roc_auc, "pr_auc": pr_auc,
+            "tp": int(tp), "fp": int(fp), "fn": int(fn), "tn": int(tn),
+            "best_thresh": best_thresh, "f1_opt": best_f1_opt,
+            "tp_opt": int(tp_o), "fp_opt": int(fp_o), "fn_opt": int(fn_o),
+            "recall_opt": round(recall_opt, 4), "prec_opt": round(prec_opt, 4),
+            "n_examples": n,
+        })
+
+        return avg_loss, n, {
+            "accuracy" : float(accuracy),
+            "loss"     : float(avg_loss),
+            "recall"   : float(recall),
+            "precision": float(precision),
+            "f1"       : float(f1),
+            "roc_auc"  : float(roc_auc),
+            "pr_auc"   : float(pr_auc),
+        }
+
+    def _save_round_log(self, round_num, metrics: dict) -> None:
+        """Sauvegarde les métriques du round dans un fichier JSON par nœud."""
+        import json
+        log_dir  = Path(f"logs/node_{self.client_id}")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "eval_history.json"
+
+        history = []
+        if log_file.exists():
+            try:
+                history = json.loads(log_file.read_text())
+            except Exception:
+                history = []
+
+        history.append({"round": round_num, **metrics})
+        log_file.write_text(json.dumps(history, indent=2))
 
 
 # ============================================================================
@@ -298,7 +402,7 @@ def main() -> None:
     print(f"\n{model.info()}\n")
 
     # Client Flower
-    client = FlowerClient(model, train_loader, val_loader)
+    client = FlowerClient(model, train_loader, val_loader, client_id=client_id)
 
     print(f"🚀 Connexion au serveur Flower : {server_address}")
 
