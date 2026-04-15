@@ -1,0 +1,17 @@
+# Copy this file to terraform.tfvars and update all TODO values.
+
+aws_region = "eu-west-3" # TODO: MODIFY_WITH_YOUR_DATA
+
+project_name = "fraud-detection-pipeline"
+vpc_cidr = "10.42.0.0/16"
+public_subnet_cidr = "10.42.1.0/24"
+
+instance_type = "t3.medium"
+
+key_pair_name = "replace-with-your-keypair-name" # TODO: MODIFY_WITH_YOUR_DATA
+
+ubuntu_2404_ami_id = "ami-REPLACE_WITH_UBUNTU_24_04_AMI" # TODO: MODIFY_WITH_YOUR_DATA
+
+# Restrict both CIDR lists to your VPN / Tailscale source range(s).
+allowed_flower_cidrs = ["0.0.0.0/0"] # TODO: MODIFY_WITH_YOUR_DATA
+allowed_ssh_cidrs    = ["0.0.0.0/0"] # TODO: MODIFY_WITH_YOUR_DATA

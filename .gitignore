@@ -211,3 +211,13 @@ __marimo__/
 
 /checkpoints/
 /.vscode/
+
+# Local .terraform directories
+terraform/.terraform/*
+
+# .tfstate files (Contains your sensitive infrastructure state - NEVER commit these)
+*.tfstate
+*.tfstate.*
+
+
+/certs_prod/
