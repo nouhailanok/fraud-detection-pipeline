@@ -1,3 +1,21 @@
+# Mac
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Data (IMPORTANT)
+data/**/tensors/
+*.npy
+
+# Logs
+logs/
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
