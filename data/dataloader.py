@@ -2136,7 +2136,8 @@ def get_split_dataloaders(
     """Alias pour client.py Flower → délègue vers Approche B."""
     return get_dataloaders_approach_B(
         data_dir=data_dir, train_ratio=train_ratio,
-        batch_size=batch_size, seq_len=seq_len, random_seed=random_seed,
+        batch_size=batch_size, seq_len=seq_len,
+        #random_seed=random_seed,
     )
 
 
