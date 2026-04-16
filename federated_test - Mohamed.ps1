@@ -1,80 +1,78 @@
 # ═══════════════════════════════════════════════════════
 # federated_test.ps1 — Lancement du pipeline FL local
 # ═══════════════════════════════════════════════════════
-# Fix : force Python 3.12 (CUDA + Opacus + toutes les libs)
-# au lieu de Python 3.14 (sans CUDA) utilisé par défaut.
+# Fix : chemin Python 3.12 hardcodé DANS chaque scriptblock
+# Start-Process ne transmet pas les variables externes
 # ═══════════════════════════════════════════════════════
 
-# ── Python 3.12 — chemin absolu ──────────────────────────────────────────────
-$PYTHON = "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe"
-
-w
-
-# Vérification rapide avant de lancer
-$cudaCheck = & $PYTHON -c "import torch; print(torch.cuda.is_available())" 2>&1
-if ($cudaCheck -ne "True") {
-    Write-Host "❌ CUDA non disponible sur Python 3.12 — vérifie l'installation PyTorch" -ForegroundColor Red
+# Vérification CUDA avant de lancer
+Write-Host "Verification Python 3.12 + CUDA..." -ForegroundColor DarkGray
+$cudaOk = & "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe" -c "import torch; print(torch.cuda.is_available())" 2>&1
+if ($cudaOk -ne "True") {
+    Write-Host "CUDA non disponible sur Python 3.12" -ForegroundColor Red
+    Write-Host "Resultat : $cudaOk" -ForegroundColor Red
     exit 1
 }
-Write-Host "✅ Python 3.12 + CUDA OK — lancement du FL..." -ForegroundColor Green
+$gpuName = & "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe" -c "import torch; print(torch.cuda.get_device_name(0))" 2>&1
+Write-Host "OK Python 3.12 + GPU : $gpuName" -ForegroundColor Green
 Start-Sleep -Seconds 1
 
-# ── SERVEUR ───────────────────────────────────────────────────────────────────
+$ProjectDir = $PWD.Path
+
+# SERVEUR
 $ServerBlock = {
-    param($PYTHON)
-    $env:PYTHONPATH                    = $PWD.Path
-    $env:FL_ROUNDS                     = "3"
-    $env:FL_MIN_CLIENTS                = "2"
-    $env:FLOWER_PORT                   = "8080"
+    Set-Location $args[0]
+    $env:PYTHONPATH                     = $args[0]
+    $env:FL_ROUNDS                      = "3"
+    $env:FL_MIN_CLIENTS                 = "2"
+    $env:FL_LOCAL_EPOCHS                = "3"
+    $env:FLOWER_PORT                    = "8080"
     $env:FLOWER_TLS_REQUIRE_CLIENT_CERT = "false"
-    Write-Host "🚀 Lancement du SERVEUR..." -ForegroundColor Cyan
-    & $PYTHON federated/server.py
+    Write-Host "Lancement SERVEUR Python 3.12..." -ForegroundColor Cyan
+    & "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe" federated/server.py
 }
 
-# ── BANQUE 1 ──────────────────────────────────────────────────────────────────
+# BANQUE 1
 $Client1Block = {
-    param($PYTHON)
-    $env:PYTHONPATH          = $PWD.Path
-    $env:CLIENT_ID           = "1"
-    $env:FLOWER_SERVER_HOST  = "127.0.0.1"
-    $env:FLOWER_SERVER_PORT  = "8080"
-    $env:FL_CLIENT_CONTINUOUS= "true"
-    $env:DP_NOISE            = "1.5"
-    $env:FL_LR               = "0.0005"
-    $env:FL_BATCH_SIZE       = "256"
-    $env:FL_POS_WEIGHT       = "167.0"
-    Write-Host "🏦 Lancement de la BANQUE 1..." -ForegroundColor Green
-    & $PYTHON federated/client.py
+    Set-Location $args[0]
+    $env:PYTHONPATH           = $args[0]
+    $env:CLIENT_ID            = "1"
+    $env:FLOWER_SERVER_HOST   = "127.0.0.1"
+    $env:FLOWER_SERVER_PORT   = "8080"
+    $env:FL_CLIENT_CONTINUOUS = "true"
+    $env:DP_NOISE             = "1.5"
+    $env:FL_LR                = "0.0005"
+    $env:FL_BATCH_SIZE        = "256"
+    $env:FL_POS_WEIGHT        = "167.0"
+    Write-Host "Lancement BANQUE 1 Python 3.12 + GPU..." -ForegroundColor Green
+    & "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe" federated/client.py
 }
 
-# ── BANQUE 2 ──────────────────────────────────────────────────────────────────
+# BANQUE 2
 $Client2Block = {
-    param($PYTHON)
-    $env:PYTHONPATH          = $PWD.Path
-    $env:CLIENT_ID           = "2"
-    $env:FLOWER_SERVER_HOST  = "127.0.0.1"
-    $env:FLOWER_SERVER_PORT  = "8080"
-    $env:FL_CLIENT_CONTINUOUS= "true"
-    $env:DP_NOISE            = "1.5"
-    $env:FL_LR               = "0.0005"
-    $env:FL_BATCH_SIZE       = "256"
-    $env:FL_POS_WEIGHT       = "167.0"
-    Write-Host "🏦 Lancement de la BANQUE 2..." -ForegroundColor Yellow
-    & $PYTHON federated/client.py
+    Set-Location $args[0]
+    $env:PYTHONPATH           = $args[0]
+    $env:CLIENT_ID            = "2"
+    $env:FLOWER_SERVER_HOST   = "127.0.0.1"
+    $env:FLOWER_SERVER_PORT   = "8080"
+    $env:FL_CLIENT_CONTINUOUS = "true"
+    $env:DP_NOISE             = "1.5"
+    $env:FL_LR                = "0.0005"
+    $env:FL_BATCH_SIZE        = "256"
+    $env:FL_POS_WEIGHT        = "167.0"
+    Write-Host "Lancement BANQUE 2 Python 3.12 + GPU..." -ForegroundColor Yellow
+    & "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe" federated/client.py
 }
 
-# ── Lancement des 3 processus ─────────────────────────────────────────────────
-# Serveur en premier, puis les clients après 3 secondes
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $ServerBlock,  "-args", $PYTHON
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $ServerBlock,  "-args", $ProjectDir
 Start-Sleep -Seconds 3
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $Client1Block, "-args", $PYTHON
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $Client2Block, "-args", $PYTHON
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $Client1Block, "-args", $ProjectDir
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $Client2Block, "-args", $ProjectDir
 
 Write-Host ""
-Write-Host "════════════════════════════════════════════" -ForegroundColor DarkGray
-Write-Host "  3 fenêtres ouvertes :" -ForegroundColor DarkGray
-Write-Host "  - Serveur Flower (port 8080)" -ForegroundColor Cyan
-Write-Host "  - Banque 1 (node_1/tensors)" -ForegroundColor Green
-Write-Host "  - Banque 2 (node_2/tensors)" -ForegroundColor Yellow
-Write-Host "  Logs FL → logs/fl/" -ForegroundColor DarkGray
-Write-Host "════════════════════════════════════════════" -ForegroundColor DarkGray
+Write-Host "3 fenetres ouvertes (Python 3.12 + GPU)" -ForegroundColor DarkGray
+Write-Host "Serveur Flower port 8080"                -ForegroundColor Cyan
+Write-Host "Banque 1 node_1/tensors"                 -ForegroundColor Green
+Write-Host "Banque 2 node_2/tensors"                 -ForegroundColor Yellow
+Write-Host "Local epochs/round : 3"                  -ForegroundColor DarkGray
+Write-Host "Logs FL : logs/fl/"                      -ForegroundColor DarkGray
