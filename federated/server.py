@@ -62,7 +62,7 @@ class MetricsLogger:
         self.summary_path = logs_dir / "fl_summary.txt"
 
         # Initialise le CSV avec les en-têtes
-        with open(self.csv_path, "w", newline="") as f:
+        with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=self._csv_fields())
             writer.writeheader()
 
@@ -116,7 +116,7 @@ class MetricsLogger:
             json.dump(self.history, f, indent=2, ensure_ascii=False)
 
         # Sauvegarde CSV (ajout de la ligne)
-        with open(self.csv_path, "a", newline="") as f:
+        with open(self.csv_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=self._csv_fields())
             writer.writerow(record)
 
@@ -188,7 +188,7 @@ class MetricsLogger:
         ]
 
         summary_text = "\n".join(lines)
-        with open(self.summary_path, "w") as f:
+        with open(self.summary_path, "w", encoding="utf-8") as f:
             f.write(summary_text)
 
         print(f"\n{summary_text}")
@@ -387,9 +387,10 @@ def _build_certificates() -> Optional[Tuple[bytes, bytes, bytes]]:
 def main():
     global _logger, _total_rounds
 
-    rounds      = int(os.getenv("FL_ROUNDS",      "5"))
-    min_clients = int(os.getenv("FL_MIN_CLIENTS", "2"))
-    port        = int(os.getenv("FLOWER_PORT",    "8080"))
+    rounds        = int(os.getenv("FL_ROUNDS",        "5"))
+    min_clients   = int(os.getenv("FL_MIN_CLIENTS",   "2"))
+    local_epochs  = int(os.getenv("FL_LOCAL_EPOCHS",  "3"))
+    port          = int(os.getenv("FLOWER_PORT",       "8080"))
     server_address = f"0.0.0.0:{port}"
 
     _total_rounds = rounds
@@ -397,17 +398,32 @@ def main():
 
     print(f"\n{'═'*58}")
     print(f"  🚀 Serveur Flower")
-    print(f"  Rounds : {rounds}  |  Min clients : {min_clients}")
+    print(f"  Rounds : {rounds}  |  Min clients : {min_clients}  |  Local epochs : {local_epochs}")
     print(f"  Logs   : {LOGS_DIR.resolve()}")
     print(f"{'═'*58}\n")
 
+    # on_fit_config_fn : config envoyée aux clients avant chaque round d'entraînement
+    # Le client lit config.get("local_epochs", 1) dans fit()
+    def fit_config(server_round: int) -> dict:
+        return {
+            "local_epochs" : local_epochs,   # nb d'epochs locaux par round
+            "round"        : server_round,
+        }
+
+    # on_evaluate_config_fn : config envoyée aux clients avant chaque évaluation
+    # Le client lit config.get("round", "?") dans evaluate()
+    def eval_config(server_round: int) -> dict:
+        return {"round": server_round}
+
     strategy = FedAvgWithLogging(
-        total_rounds           = rounds,
-        fraction_fit           = 1.0,
-        fraction_evaluate      = 1.0,
-        min_fit_clients        = min_clients,
-        min_evaluate_clients   = min_clients,
-        min_available_clients  = min_clients,
+        total_rounds              = rounds,
+        fraction_fit              = 1.0,
+        fraction_evaluate         = 1.0,
+        min_fit_clients           = min_clients,
+        min_evaluate_clients      = min_clients,
+        min_available_clients     = min_clients,
+        on_fit_config_fn          = fit_config,      # ← envoie local_epochs aux clients
+        on_evaluate_config_fn     = eval_config,     # ← envoie round num aux clients
         evaluate_metrics_aggregation_fn = aggregate_eval_metrics,
         fit_metrics_aggregation_fn      = aggregate_fit_metrics,
     )

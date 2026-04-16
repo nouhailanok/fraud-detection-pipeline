@@ -37,7 +37,7 @@ except ImportError:
 # ⚙️  CONFIGURATION
 # ══════════════════════════════════════════════════════
 
-DATA_DIR       = "data/node_1/tensors/"
+DATA_DIR       = "data/node_2/tensors/"
 CHECKPOINT_DIR = "checkpoints/"
 
 # Modèle
@@ -52,7 +52,7 @@ SEQ_LEN       = 5
 TRAIN_RATIO   = 0.8
 POS_WEIGHT    = 167.0   # ratio réel : 362 974 légit / 2 174 fraudes
 PATIENCE      = 5       # early stopping
-APPROACH      = "A"     # "A" = intra-user temporel | "B" = population unseen users
+APPROACH      = "B"     # "A" = intra-user temporel | "B" = population unseen users
 USE_DPGRU    = True    # True = DPGRU (compatible Opacus/DP) | False = GRU standard
 
 EPOCHS        = 20
@@ -247,7 +247,7 @@ def train_and_evaluate():
     best_val_loss     = float("inf")
     epochs_no_improve = 0
     model_suffix      = "dpgru" if USE_DPGRU else "gru"
-    checkpoint_path   = f"{CHECKPOINT_DIR}best_{model_suffix}_approach{APPROACH}.pt"
+    checkpoint_path   = f"{CHECKPOINT_DIR}best_{model_suffix}2_approach{APPROACH}.pt"
 
     print(f"\n{'─'*55}")
 

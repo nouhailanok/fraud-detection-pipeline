@@ -422,5 +422,10 @@ def main() -> None:
         time.sleep(retry_seconds)
 
 
+# # Ajoute temporairement en haut de client.py pour déboguer :
+# import torch
+# print(f"CUDA disponible : {torch.cuda.is_available()}")
+# print(f"GPU : {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'aucun'}")
+
 if __name__ == "__main__":
     main()
