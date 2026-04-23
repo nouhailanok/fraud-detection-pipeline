@@ -73,6 +73,7 @@ class BehavioralAnalyzer:
         "loss_zero"      : 1e-4,    # en dessous → probable FREE_RIDER
     }
 
+
     def __init__(
         self,
         logs_dir        : Path,
@@ -81,6 +82,7 @@ class BehavioralAnalyzer:
         n_estimators    : int   = 100,
         random_state    : int   = 42,
         n_clients       : int   = 4,
+        activation_round: int   = 3,       # round à partir duquel IF est activé
     ):
         self.logs_dir      = Path(logs_dir)
         self.min_rounds_if = min_rounds_if
@@ -88,6 +90,7 @@ class BehavioralAnalyzer:
         self.n_estimators  = n_estimators
         self.random_state  = random_state
         self.n_clients     = n_clients
+        self.activation_round = activation_round
 
         # Historique de toutes les features (accumulation multi-rounds)
         self._history      : List[Dict] = []   # liste de records {round, client_id, features...}
