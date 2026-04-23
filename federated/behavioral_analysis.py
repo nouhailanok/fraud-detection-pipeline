@@ -80,12 +80,14 @@ class BehavioralAnalyzer:
         contamination   : float = 0.1,     # fraction attendue de nœuds suspects
         n_estimators    : int   = 100,
         random_state    : int   = 42,
+        n_clients       : int   = 4,
     ):
         self.logs_dir      = Path(logs_dir)
         self.min_rounds_if = min_rounds_if
         self.contamination = contamination
         self.n_estimators  = n_estimators
         self.random_state  = random_state
+        self.n_clients     = n_clients
 
         # Historique de toutes les features (accumulation multi-rounds)
         self._history      : List[Dict] = []   # liste de records {round, client_id, features...}
