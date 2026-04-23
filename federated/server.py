@@ -46,7 +46,15 @@ CHECKPOINT_DIR = Path(os.getenv("FL_CHECKPOINT_DIR", "logs/fl/checkpoints"))
 FL_PATIENCE    = int(os.getenv("FL_PATIENCE",         "5"))
 
 BA_ACTIVATION_ROUND = int(os.getenv("BA_ACTIVATION_ROUND", "3"))
-BA_CONTAMINATION    = float(os.getenv("BA_CONTAMINATION",  "0.1"))
+# BA_CONTAMINATION    = float(os.getenv("BA_CONTAMINATION",  "0.1"))
+
+# BA_CONTAMINATION : si non défini, calculé depuis FL_MIN_CLIENTS (1 suspect max sur N)
+# Avec 4 nœuds → 1/4 = 0.25 | Avec 2 nœuds → 1/2 = 0.5
+# Isolation Forest exige contamination > 0 et <= 0.5
+_default_contamination = round(
+    1.0 / max(int(os.getenv("FL_MIN_CLIENTS", "4")), 2), 4
+)
+BA_CONTAMINATION = float(os.getenv("BA_CONTAMINATION", str(_default_contamination)))
 
 
 # ============================================================================
