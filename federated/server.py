@@ -86,51 +86,119 @@ def save_checkpoint(server_round: int, parameters) -> None:
         print(f"  ⚠️  Checkpoint error round {server_round} : {e}")
 
 
-def _infer_last_round(checkpoint_dir: Path) -> int:
-    meta = checkpoint_dir / "last_round.txt"
-    if meta.exists():
+# def _infer_last_round(checkpoint_dir: Path) -> int:
+#     meta = checkpoint_dir / "last_round.txt"
+#     if meta.exists():
+#         try:
+#             return int(meta.read_text(encoding="utf-8").strip())
+#         except Exception:
+#             pass
+#     best = 0
+#     for p in checkpoint_dir.glob("global_model_round_*.npz"):
+#         try:
+#             best = max(best, int(p.stem.split("_")[-1]))
+#         except Exception:
+#             pass
+#     return best
+
+
+
+# def load_checkpoint_from(path_or_dir: Optional[str]) -> tuple[Optional[list], int]:
+#     if not path_or_dir:
+#         return None, 0
+#     p = Path(path_or_dir)
+#     npz_path       = (p / "global_model_last.npz") if p.is_dir() else p
+#     checkpoint_dir = p if p.is_dir() else p.parent
+#     if not npz_path.exists():
+#         return None, 0
+#     try:
+#         # data       = np.load(str(npz_path))
+#         # parameters = [data[k] for k in sorted(data.files)]
+#         # last_round = _infer_last_round(checkpoint_dir)
+
+
+#         data = np.load(str(npz_path))
+        
+#         # FIX : Tri numérique (0, 1, 2... 10) et non alphabétique (0, 1, 10... 2)
+#         sorted_keys = sorted(data.files, key=lambda x: int(x.split('_')[1]))
+#         parameters = [data[k] for k in sorted_keys]
+
+#         last_round = _infer_last_round(checkpoint_dir)
+
+
+
+#         print(f"  ✅ Checkpoint chargé → reprise depuis round {last_round}")
+#         return parameters, last_round
+#     except Exception as e:
+#         print(f"  ⚠️  Checkpoint load error : {e}")
+#         return None, 0
+    
+def _infer_last_round_from_dir(checkpoint_dir: Path) -> int:
+    meta_path = checkpoint_dir / "last_round.txt"
+    if meta_path.exists():
         try:
-            return int(meta.read_text(encoding="utf-8").strip())
+            return int(meta_path.read_text(encoding="utf-8").strip())
         except Exception:
             pass
+
+    # fallback: max global_model_round_XXX.npz
     best = 0
     for p in checkpoint_dir.glob("global_model_round_*.npz"):
+        stem = p.stem
         try:
-            best = max(best, int(p.stem.split("_")[-1]))
+            n = int(stem.split("_")[-1])
+            best = max(best, n)
         except Exception:
-            pass
+            continue
     return best
 
-
-
 def load_checkpoint_from(path_or_dir: Optional[str]) -> tuple[Optional[list], int]:
+    """Charge un checkpoint depuis un chemin (dir ou fichier .npz).
+
+    - Si dir: utilise global_model_last.npz
+    - Si fichier .npz: charge ce fichier
+    - last_round: last_round.txt si dispo, sinon inféré
+    """
     if not path_or_dir:
         return None, 0
+
     p = Path(path_or_dir)
-    npz_path       = (p / "global_model_last.npz") if p.is_dir() else p
-    checkpoint_dir = p if p.is_dir() else p.parent
+    if p.is_dir():
+        checkpoint_dir = p
+        npz_path = checkpoint_dir / "global_model_last.npz"
+    else:
+        npz_path = p
+        checkpoint_dir = p.parent
+
     if not npz_path.exists():
         return None, 0
+
     try:
-        # data       = np.load(str(npz_path))
+        # data = np.load(str(npz_path))
         # parameters = [data[k] for k in sorted(data.files)]
-        # last_round = _infer_last_round(checkpoint_dir)
 
-
+        # last_round = _infer_last_round_from_dir(checkpoint_dir)
+        
         data = np.load(str(npz_path))
         
         # FIX : Tri numérique (0, 1, 2... 10) et non alphabétique (0, 1, 10... 2)
         sorted_keys = sorted(data.files, key=lambda x: int(x.split('_')[1]))
         parameters = [data[k] for k in sorted_keys]
 
-        last_round = _infer_last_round(checkpoint_dir)
+        last_round = _infer_last_round_from_dir(checkpoint_dir)
 
 
+        # si on charge explicitement global_model_round_XXX.npz
+        if last_round == 0 and "global_model_round_" in npz_path.name:
+            try:
+                last_round = int(npz_path.stem.split("_")[-1])
+            except Exception:
+                pass
 
-        print(f"  ✅ Checkpoint chargé → reprise depuis round {last_round}")
+        print(f"  ✅ Checkpoint chargé → reprise depuis le round {last_round}")
         return parameters, last_round
     except Exception as e:
-        print(f"  ⚠️  Checkpoint load error : {e}")
+        print(f"  ⚠️  Erreur chargement checkpoint : {e}")
         return None, 0
 
 
