@@ -1,0 +1,379 @@
+{
+  "generated_at": "2026-04-19 15:49:20",
+  "gpu": "rtx3050ti",
+  "budget_hours": 10.0,
+  "n_nodes": 4,
+  "target_epsilon": 1.0,
+  "model": {
+    "input_dim": 26,
+    "hidden_dim": 128,
+    "num_layers": 2,
+    "dropout": 0.2,
+    "seq_len": 5,
+    "n_params": 167297
+  },
+  "nodes": [
+    {
+      "node_id": 1,
+      "n_total": 365148,
+      "n_fraud": 2174,
+      "n_legit": 362974,
+      "fraud_rate": 0.0059537502601684795,
+      "pos_weight": 167.0,
+      "n_train_approx": 292118,
+      "n_batches_128": 2283,
+      "n_batches_256": 1142,
+      "n_tensor_files": 373
+    },
+    {
+      "node_id": 2,
+      "n_total": 334661,
+      "n_fraud": 2040,
+      "n_legit": 332621,
+      "fraud_rate": 0.006095720744275551,
+      "pos_weight": 163.0,
+      "n_train_approx": 267728,
+      "n_batches_128": 2092,
+      "n_batches_256": 1046,
+      "n_tensor_files": 341
+    },
+    {
+      "node_id": 3,
+      "n_total": 342837,
+      "n_fraud": 1760,
+      "n_legit": 341077,
+      "fraud_rate": 0.005133634934385728,
+      "pos_weight": 193.8,
+      "n_train_approx": 274269,
+      "n_batches_128": 2143,
+      "n_batches_256": 1072,
+      "n_tensor_files": 351
+    }
+  ],
+  "top_combinations": [
+    {
+      "rank": 1,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 1.2,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0256,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.03,
+      "score": {
+        "total": 0.9872,
+        "privacy": 0.992,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.979,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 2,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 1.0,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0308,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.03,
+      "score": {
+        "total": 0.9867,
+        "privacy": 0.991,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.979,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 3,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 0.9,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0342,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.03,
+      "score": {
+        "total": 0.9864,
+        "privacy": 0.99,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.979,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 4,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 0.8,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0385,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.03,
+      "score": {
+        "total": 0.986,
+        "privacy": 0.988,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.979,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 5,
+      "params": {
+        "fl_rounds": 20,
+        "local_epochs": 3,
+        "dp_noise": 1.2,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0296,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.37,
+      "score": {
+        "total": 0.9858,
+        "privacy": 0.991,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.973,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 6,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 1.2,
+        "batch_size": 128,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0128,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.97,
+      "score": {
+        "total": 0.9855,
+        "privacy": 0.996,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.961,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 7,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 1.0,
+        "batch_size": 128,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0154,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.97,
+      "score": {
+        "total": 0.9853,
+        "privacy": 0.995,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.961,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 8,
+      "params": {
+        "fl_rounds": 20,
+        "local_epochs": 3,
+        "dp_noise": 1.0,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0355,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.37,
+      "score": {
+        "total": 0.9853,
+        "privacy": 0.989,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.973,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 9,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 0.9,
+        "batch_size": 128,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0171,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.97,
+      "score": {
+        "total": 0.9852,
+        "privacy": 0.995,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.961,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 10,
+      "params": {
+        "fl_rounds": 15,
+        "local_epochs": 3,
+        "dp_noise": 0.8,
+        "batch_size": 128,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0192,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.97,
+      "score": {
+        "total": 0.985,
+        "privacy": 0.994,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.961,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 11,
+      "params": {
+        "fl_rounds": 20,
+        "local_epochs": 3,
+        "dp_noise": 0.9,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0395,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.37,
+      "score": {
+        "total": 0.9849,
+        "privacy": 0.988,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.973,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    },
+    {
+      "rank": 12,
+      "params": {
+        "fl_rounds": 20,
+        "local_epochs": 3,
+        "dp_noise": 0.8,
+        "batch_size": 256,
+        "lr": 0.0005
+      },
+      "eps_final": 0.0444,
+      "eps_round": -1,
+      "drift": 0.0296,
+      "duration_hours": 1.37,
+      "score": {
+        "total": 0.9845,
+        "privacy": 0.987,
+        "endurance": 1.0,
+        "antidrift": 0.97,
+        "time": 0.973,
+        "balance": 1.0
+      },
+      "pos_weights": {
+        "node_1": 167.0,
+        "node_2": 163.0,
+        "node_3": 193.8
+      }
+    }
+  ]
+}
