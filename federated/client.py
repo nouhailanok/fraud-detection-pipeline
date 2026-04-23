@@ -598,7 +598,8 @@ class FlowerClient(fl.client.NumPyClient):
             return (
                 self.get_parameters(config),
                 0,   # 0 exemples → FedAvg ignore ce nœud (poids nul)
-                {"epsilon": float(epsilon), "train_loss": 0.0, "dp_exhausted": True},
+                {"epsilon": float(epsilon), "train_loss": 0.0, "dp_exhausted": True,
+                 "client_id": self.client_id},
             )
 
         # ── Entraînement normal ───────────────────────────────────────────────
@@ -647,7 +648,8 @@ class FlowerClient(fl.client.NumPyClient):
             self.get_parameters(config),
             len(self.train_loader.dataset),
             {"epsilon": float(epsilon), "train_loss": avg_loss,
-             "dp_exhausted": self.dp_exhausted},
+             "dp_exhausted": self.dp_exhausted,
+             "client_id": self.client_id},
         )
 
     # ── Évaluation locale — identique à train_local.py ──────────────────────
