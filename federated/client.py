@@ -59,6 +59,7 @@ from opacus import PrivacyEngine
 # ── Imports du projet ────────────────────────────────────────────────────────
 # CHANGEMENT 1 : build_model() au lieu de FraudRNN() hardcodé
 from models.fraud_rnn import build_model
+# from models.fraud_lstm import build_model
 from data.dataloader import get_split_dataloaders
 
 
@@ -126,6 +127,10 @@ class FlowerClient(fl.client.NumPyClient):
             max_grad_norm   = 1.0,
         )
 
+        # 🔐 Budget DP — arrêt automatique quand ε dépasse le seuil
+        self.epsilon_target  = float(os.getenv("DP_EPSILON_TARGET", "1.0"))
+        self.dp_exhausted    = False   # True quand ε > epsilon_target
+
     # ── Paramètres FL ────────────────────────────────────────────────────────
 
     def get_parameters(self, config):
@@ -138,9 +143,25 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        self.model.train()
 
+        # ── Vérification budget DP AVANT le round ────────────────────────────
+        # Si le budget est déjà épuisé depuis le round précédent,
+        # on renvoie les paramètres reçus sans entraîner
+        if self.dp_exhausted:
+            print(f"\n🔒 Nœud {self.client_id} — Budget DP épuisé (ε > {self.epsilon_target})")
+            print(f"   Ce nœud ne participera plus à l'entraînement")
+            print(f"   Les autres nœuds continuent...")
+            epsilon = self.privacy_engine.get_epsilon(delta=1e-5)
+            return (
+                self.get_parameters(config),
+                0,   # 0 exemples → FedAvg ignore ce nœud (poids nul)
+                {"epsilon": float(epsilon), "train_loss": 0.0, "dp_exhausted": True},
+            )
+
+        # ── Entraînement normal ───────────────────────────────────────────────
+        self.model.train()
         local_epochs = int(config.get("local_epochs", 1))
+        avg_loss = 0.0
 
         for epoch in range(local_epochs):
             total_loss = 0.0
@@ -151,16 +172,14 @@ class FlowerClient(fl.client.NumPyClient):
 
                 self.optimizer.zero_grad()
 
-                # Forward en FP32 (même approche que train_local.py)
                 logits      = self.model(x).float()
                 loss        = self.criterion(logits, y.float())
 
                 loss.backward()
 
-                # CHANGEMENT 6 : gradient clipping — aligné avec train_local.py
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=1.0
-                )
+                # torch.nn.utils.clip_grad_norm_(
+                #     self.model.parameters(), max_norm=1.0
+                # )
 
                 self.optimizer.step()
 
@@ -170,17 +189,22 @@ class FlowerClient(fl.client.NumPyClient):
             avg_loss = total_loss / max(n_batches, 1)
             print(f"   [FL-Epoch {epoch+1}/{local_epochs}] Loss: {avg_loss:.4f}")
 
-        # 🔐 Calcul du budget ε
+        # ── Calcul ε APRÈS le round complet ──────────────────────────────────
         epsilon = self.privacy_engine.get_epsilon(delta=1e-5)
-        print(f"🔐 ε = {epsilon:.4f}  (target ≤ 1.0)")
+        print(f"🔐 ε = {epsilon:.4f}  (target ≤ {self.epsilon_target})")
 
-        if epsilon > 1.0:
-            print("⚠️  ε > 1.0 → privacy faible → augmenter DP_NOISE")
+        # Vérification APRÈS le round (jamais pendant)
+        if epsilon > self.epsilon_target:
+            self.dp_exhausted = True
+            print(f"⚠️  Nœud {self.client_id} : ε = {epsilon:.4f} > {self.epsilon_target}")
+            print(f"   Budget DP épuisé — ce nœud arrêtera APRÈS ce round")
+            print(f"   Le round actuel est complété normalement ✅")
 
         return (
             self.get_parameters(config),
             len(self.train_loader.dataset),
-            {"epsilon": float(epsilon), "train_loss": avg_loss},
+            {"epsilon": float(epsilon), "train_loss": avg_loss,
+             "dp_exhausted": self.dp_exhausted},
         )
 
     # ── Évaluation locale — identique à train_local.py ──────────────────────
@@ -368,6 +392,7 @@ def main() -> None:
     host           = os.getenv("FLOWER_SERVER_HOST", "flower")
     port           = int(os.getenv("FLOWER_SERVER_PORT", "8080"))
     server_address = f"{host}:{port}"
+    # server_address = "localhost:8080"
     retry_seconds  = int(os.getenv("FL_CLIENT_RETRY_SECONDS", "10"))
     continuous     = os.getenv("FL_CLIENT_CONTINUOUS", "true").lower() == "true"
 
@@ -386,23 +411,34 @@ def main() -> None:
 
     print(f"📂 Chargement des tensors depuis : {data_dir}")
 
-    # CHANGEMENT 5 + 8 : batch_size=256, retourne 2 loaders (B2 : val=test)
-    train_loader, val_loader = get_split_dataloaders(
+    loaders = get_split_dataloaders(
         data_dir    = data_dir,
         train_ratio = TRAIN_RATIO,
         batch_size  = BATCH_SIZE,    # ← 64 → 256
         seq_len     = SEQ_LEN,
     )
 
+    if len(loaders) == 2:
+        train_loader, eval_loader = loaders
+    elif len(loaders) == 3:
+        train_loader, val_loader, test_loader = loaders
+        # Prefer test when available to keep evaluation stable and less noisy.
+        eval_loader = test_loader if len(test_loader.dataset) > 0 else val_loader
+    else:
+        raise ValueError(
+            f"get_split_dataloaders() doit retourner 2 ou 3 loaders, reçu: {len(loaders)}"
+        )
+
     print(f"[FL-CLIENT] {client_id} → {server_address}")
 
     # CHANGEMENT 1 : build_model() au lieu de FraudRNN(...) hardcodé
     # Utilise automatiquement la config définie dans fraud_rnn.py (USE_DPGRU, etc.)
     model = build_model(use_dpgru=True)
+    # model = build_model(use_dplstm=True)
     print(f"\n{model.info()}\n")
 
     # Client Flower
-    client = FlowerClient(model, train_loader, val_loader, client_id=client_id)
+    client = FlowerClient(model, train_loader, eval_loader, client_id=client_id)
 
     print(f"🚀 Connexion au serveur Flower : {server_address}")
 
