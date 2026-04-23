@@ -102,6 +102,7 @@ def _infer_last_round(checkpoint_dir: Path) -> int:
     return best
 
 
+
 def load_checkpoint_from(path_or_dir: Optional[str]) -> tuple[Optional[list], int]:
     if not path_or_dir:
         return None, 0
@@ -111,9 +112,21 @@ def load_checkpoint_from(path_or_dir: Optional[str]) -> tuple[Optional[list], in
     if not npz_path.exists():
         return None, 0
     try:
-        data       = np.load(str(npz_path))
-        parameters = [data[k] for k in sorted(data.files)]
+        # data       = np.load(str(npz_path))
+        # parameters = [data[k] for k in sorted(data.files)]
+        # last_round = _infer_last_round(checkpoint_dir)
+
+
+        data = np.load(str(npz_path))
+        
+        # FIX : Tri numérique (0, 1, 2... 10) et non alphabétique (0, 1, 10... 2)
+        sorted_keys = sorted(data.files, key=lambda x: int(x.split('_')[1]))
+        parameters = [data[k] for k in sorted_keys]
+
         last_round = _infer_last_round(checkpoint_dir)
+
+
+
         print(f"  ✅ Checkpoint chargé → reprise depuis round {last_round}")
         return parameters, last_round
     except Exception as e:
