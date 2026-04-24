@@ -1,0 +1,53 @@
+==========================================================
+  RAPPORT FINAL — Federated Learning
+==========================================================
+  Rounds effectués  : 32 / 20
+  Temps total       : 7174.5s
+  Nœuds (min)       : 0
+
+  Meilleur round :
+    Round     : 14
+    Accuracy  : 0.9973
+    Recall    : 0.5972
+    Precision : 0.8855
+    F1-score  : 0.7124
+    Loss      : 2.8014
+
+  Évolution ε par round :
+    Round  1 : avg=0.2526  max=0.2868  ✅
+    Round  1 : avg=0.2526  max=0.2868  ✅
+    Round  2 : avg=0.3604  max=0.4092  ✅
+    Round  2 : avg=0.3604  max=0.4092  ✅
+    Round  3 : avg=0.4451  max=0.5055  ✅
+    Round  3 : avg=0.4451  max=0.5055  ✅
+    Round  4 : avg=0.5177  max=0.5879  ✅
+    Round  4 : avg=0.5177  max=0.5879  ✅
+    Round  5 : avg=0.5823  max=0.6614  ✅
+    Round  5 : avg=0.5823  max=0.6614  ✅
+    Round  6 : avg=0.6414  max=0.7286  ✅
+    Round  6 : avg=0.6414  max=0.7286  ✅
+    Round  7 : avg=0.6961  max=0.7909  ✅
+    Round  7 : avg=0.6961  max=0.7909  ✅
+    Round  8 : avg=0.7475  max=0.8493  ✅
+    Round  8 : avg=0.7475  max=0.8493  ✅
+    Round  9 : avg=0.7960  max=0.9045  ✅
+    Round  9 : avg=0.7960  max=0.9045  ✅
+    Round 10 : avg=0.8422  max=0.9571  ✅
+    Round 10 : avg=0.8422  max=0.9571  ✅
+    Round 11 : avg=0.8863  max=1.0073  ⚠️
+    Round 11 : avg=0.8863  max=1.0073  ⚠️
+    Round 12 : avg=0.8864  max=0.9043  ✅
+    Round 12 : avg=0.8864  max=0.9043  ✅
+    Round 13 : avg=0.9254  max=0.9440  ✅
+    Round 13 : avg=0.9254  max=0.9440  ✅
+    Round 14 : avg=0.9630  max=0.9824  ✅
+    Round 14 : avg=0.9630  max=0.9824  ✅
+    Round 15 : avg=0.9995  max=1.0197  ⚠️
+    Round 15 : avg=0.9995  max=1.0197  ⚠️
+    Round 16 : avg=1.0067  max=1.0067  ⚠️
+    Round 16 : avg=1.0067  max=1.0067  ⚠️
+
+  Fichiers de log :
+    JSON    : logs\runs\2026-04-21_19-48-16_saad\fl_metrics.json
+    CSV     : logs\runs\2026-04-21_19-48-16_saad\fl_metrics.csv
+==========================================================

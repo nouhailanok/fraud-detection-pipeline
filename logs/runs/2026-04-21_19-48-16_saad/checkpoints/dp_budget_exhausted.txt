@@ -1,0 +1,5 @@
+Arrêt FL: tous les clients ont num_examples=0.
+Round : 17
+Clients dp_exhausted (signalés) : 4/4
+Best F1 connu : 0.712358 (round 14)
+Cause typique: DP_EPSILON_TARGET trop bas / DP_NOISE trop faible / trop de rounds / local_epochs trop haut.

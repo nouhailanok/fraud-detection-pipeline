@@ -1,0 +1,3 @@
+Early stop au round 5
+Meilleur F1 = 0.0000 au round 0
+Meilleur checkpoint : global_model_round_000.npz
