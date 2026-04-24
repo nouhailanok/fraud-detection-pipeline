@@ -440,6 +440,7 @@ class FedAvgWithLogging(fl.server.strategy.FedAvg):
         # ── 2a : BehavioralAnalyzer ───────────────────────────────────────────
         self._last_ba_report  : Dict = {}
         self._prev_agg_params = None  # poids globaux N-1 pour calcul ∆W
+        self._blacklisted     : set  = set()  # nœuds blacklistés définitivement
 
         if BA_AVAILABLE:
             self.analyzer = BehavioralAnalyzer(
