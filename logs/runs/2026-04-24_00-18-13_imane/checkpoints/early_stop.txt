@@ -1,0 +1,3 @@
+Early stop au round 35
+Meilleur F1 = 0.6998 au round 28
+Meilleur checkpoint : global_model_round_028.npz

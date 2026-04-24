@@ -1,0 +1,31 @@
+==========================================================
+  RAPPORT FINAL — Federated Learning
+==========================================================
+  Rounds effectués  : 10 / 35
+  Temps total       : 10149.3s
+  Nœuds (min)       : 0
+
+  Meilleur round :
+    Round     : 33
+    Accuracy  : 0.9977
+    Recall    : 0.6196
+    Precision : 0.8162
+    F1-score  : 0.7041
+    Loss      : 2.4574
+
+  Évolution ε par round :
+    Round 31 : avg=0.1437  max=0.1620  ✅
+    Round 31 : avg=0.1437  max=0.1620  ✅
+    Round 32 : avg=0.2034  max=0.2296  ✅
+    Round 32 : avg=0.2034  max=0.2296  ✅
+    Round 33 : avg=0.2503  max=0.2827  ✅
+    Round 33 : avg=0.2503  max=0.2827  ✅
+    Round 34 : avg=0.2904  max=0.3281  ✅
+    Round 34 : avg=0.2904  max=0.3281  ✅
+    Round 35 : avg=0.3261  max=0.3685  ✅
+    Round 35 : avg=0.3261  max=0.3685  ✅
+
+  Fichiers de log :
+    JSON    : logs\runs\2026-04-23_17-13-33_imane\fl_metrics.json
+    CSV     : logs\runs\2026-04-23_17-13-33_imane\fl_metrics.csv
+==========================================================

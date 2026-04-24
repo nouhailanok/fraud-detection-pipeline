@@ -1,0 +1,14 @@
+NOM_USER=Imane
+FL_USER=
+FL_ROUNDS=15
+FL_MIN_CLIENTS=4
+FL_LOCAL_EPOCHS=3
+FLOWER_PORT=8090
+FLOWER_TLS_REQUIRE_CLIENT_CERT=false
+FL_PATIENCE=5
+FL_RESUME=false
+FL_RESUME_FROM=
+FL_CHECKPOINT_PATH=
+FL_LOGS_DIR=logs\runs\2026-04-21_14-11-52_Imane
+FL_CHECKPOINT_DIR=logs\runs\2026-04-21_14-11-52_Imane\checkpoints
+PYTHONPATH=C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline-main Version Pc ENSAM\fraud-detection-pipeline-main (1)\fraud-detection-pipeline-main
