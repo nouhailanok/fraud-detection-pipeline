@@ -558,6 +558,44 @@ class FedAvgWithLogging(fl.server.strategy.FedAvg):
 
         self._last_ba_report = ba_report
 
+        # ── Appliquer les décisions BA (EXCLUDE / BLACKLIST) ─────────────────
+        # Les décisions sont calculées dans behavioral_analysis.py
+        # On filtre valid_results AVANT FedAvg pour exclure les nœuds suspects
+        if ba_report and ba_report.get("decisions"):
+            decisions = ba_report["decisions"]   # dict : client_id → décision
+ 
+            # Mettre à jour le blacklist permanent
+            for cid, decision in decisions.items():
+                if decision == "BLACKLIST" and cid not in self._blacklisted:
+                    self._blacklisted.add(cid)
+                    print(f"  🚫 Node {cid} ajouté au BLACKLIST permanent")
+ 
+            # Filtrer les résultats selon les décisions
+            filtered_results = []
+            for client, fit_res in valid_results:
+                metrics   = getattr(fit_res, "metrics", {}) or {}
+                client_id = str(metrics.get("client_id", "?"))
+ 
+                if client_id in self._blacklisted:
+                    print(f"  🚫 Node {client_id} BLACKLISTÉ — exclu de FedAvg")
+                    continue
+ 
+                decision = decisions.get(client_id, "NORMAL")
+                if decision == "EXCLUDE":
+                    attack = ba_report.get("attack_types", {}).get(client_id, "?")
+                    print(f"  ⛔ Node {client_id} EXCLU ce round ({attack})")
+                    continue
+ 
+                filtered_results.append((client, fit_res))
+ 
+            # Si tous les nœuds sont exclus → garder les valides originaux
+            # pour éviter un FedAvg vide (cas extrême)
+            if not filtered_results:
+                print(f"  ⚠️  Tous les nœuds exclus — FedAvg sur résultats originaux")
+                filtered_results = valid_results
+ 
+            valid_results = filtered_results
+
         # ── FedAvg standard ──────────────────────────────────────────────────
         aggregated = super().aggregate_fit(server_round, valid_results, failures)
 

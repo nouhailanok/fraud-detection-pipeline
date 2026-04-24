@@ -194,3 +194,56 @@ class BehavioralAnalyzer:
                 json.dump(self._reports, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"  ⚠️  BA save error : {e}")
+
+    def classify_attack(self, client_id, features, if_score):
+        norm_L2   = features["norm_L2"]
+        cos_sim   = features["cos_sim"]
+        var_delta = features["var_delta"]
+        mean_norm = self._get_mean_norm()
+
+        if norm_L2 < 1e-3:
+            return "FREE_RIDER"
+        elif cos_sim < -0.5:
+            return "SIGN_FLIP"
+        elif norm_L2 > mean_norm * 10:
+            return "SCALE"
+        elif var_delta > self._get_mean_var() * 5:
+            return "NOISE"
+        elif if_score < -0.3:
+            return "BYZANTINE"
+        else:
+            return "NORMAL"
+        
+    def get_decision(self, client_id, attack_type, if_score):
+        """
+        Retourne : NORMAL | ALERT | EXCLUDE | BLACKLIST
+        """
+        # Nœud déjà blacklisté
+        if client_id in self._blacklist:
+            return "BLACKLIST"
+
+        if attack_type == "SIGN_FLIP":
+            self._blacklist.add(client_id)
+            return "BLACKLIST"
+
+        elif attack_type == "FREE_RIDER":
+            return "EXCLUDE"
+
+        elif attack_type == "SCALE":
+            return "EXCLUDE"
+
+        elif attack_type == "BYZANTINE":
+            # Blacklist après 2 rounds consécutifs
+            self._consecutive_alerts[client_id] += 1
+            if self._consecutive_alerts[client_id] >= 2:
+                self._blacklist.add(client_id)
+                return "BLACKLIST"
+            return "EXCLUDE"
+
+        elif attack_type == "NOISE":
+            self._consecutive_alerts[client_id] += 1
+            return "ALERT"
+
+        else:
+            self._consecutive_alerts[client_id] = 0
+            return "NORMAL"
