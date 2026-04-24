@@ -38,6 +38,11 @@ class BehavioralAnalyzer:
         self._reports     : List[Dict] = []
         self._log_path    = self.logs_dir / "behavioral_analysis.json"
 
+        # ── Décisions et blacklist ────────────────────────────────────────────
+        self._blacklist           : set              = set()
+        self._consecutive_alerts  : Dict[str, int]   = {}   # rounds consécutifs suspects
+        self._attack_counts       : Dict[str, Dict]  = {}   # nb détections par type par client
+
     def set_prev_params(self, aggregated_params) -> None:
         """Mémorise les poids globaux après aggregate_fit."""
         if aggregated_params is None:
@@ -83,13 +88,37 @@ class BehavioralAnalyzer:
             report["suspects"] = suspects
             report["scores"]   = scores
 
+            # ── Classification + Décisions ────────────────────────────────
+            attack_types = {}
+            decisions    = {}
+
+            for cid in list(node_features.keys()):
+                feats    = node_features[cid]
+                if_score = scores.get(cid, 0.0)
+
+                # Classifier seulement les nœuds suspects
+                if cid in suspects:
+                    attack = self.classify_attack(cid, feats, if_score)
+                else:
+                    attack = "NORMAL"
+
+                decision = self.get_decision(cid, attack)
+                attack_types[cid] = attack
+                decisions[cid]    = decision
+
+            report["attack_types"] = attack_types
+            report["decisions"]    = decisions
+
             if suspects:
                 print(f"\n  🚨 BEHAVIORAL ALERT — Round {server_round}")
                 for cid in suspects:
-                    feats = node_features.get(cid, {})
-                    print(f"     Nœud {cid} → norm_L2={feats.get('norm_L2', 0):.4f}  "
-                          f"cos_sim={feats.get('cos_sim', 0):.4f}  "
-                          f"score_IF={scores.get(cid, 0):.4f}")
+                    feats    = node_features.get(cid, {})
+                    attack   = attack_types.get(cid, "?")
+                    decision = decisions.get(cid, "?")
+                    print(f"     Nœud {cid} → {attack} → {decision}"
+                          f"  norm_L2={feats.get('norm_L2', 0):.4f}"
+                          f"  cos_sim={feats.get('cos_sim', 0):.4f}"
+                          f"  score_IF={scores.get(cid, 0):.4f}")
             else:
                 print(f"  ✅ Behavioral OK — Round {server_round} "
                       f"({len(node_features)} nœuds)")
@@ -97,7 +126,9 @@ class BehavioralAnalyzer:
             reason = (f"calibration (round {server_round} < {self.activation_round})"
                       if server_round < self.activation_round
                       else "pas assez de points")
-            report["reason"] = reason
+            report["reason"]       = reason
+            report["attack_types"] = {}
+            report["decisions"]    = {}
             print(f"  🔬 Behavioral — {reason}")
 
         self._reports.append(report)
@@ -106,12 +137,15 @@ class BehavioralAnalyzer:
 
     def get_summary(self) -> Dict:
         if not self._reports:
-            return {"total_rounds": 0, "total_alerts": 0, "suspects_by_round": {}}
+            return {"total_rounds": 0, "total_alerts": 0,
+                    "suspects_by_round": {}, "blacklisted": []}
         alerts = [r for r in self._reports if r.get("suspects")]
         return {
             "total_rounds"      : len(self._reports),
             "total_alerts"      : len(alerts),
             "suspects_by_round" : {r["round"]: r["suspects"] for r in alerts},
+            "blacklisted"       : list(self._blacklist),
+            "attack_counts"     : self._attack_counts,
         }
 
     def _extract_features(self, results, prev_params) -> Dict[str, Dict]:
@@ -186,6 +220,7 @@ class BehavioralAnalyzer:
     def _empty_report(self, server_round, reason=""):
         return {"round": server_round, "active": False, "features": {},
                 "suspects": [], "scores": {}, "n_points": 0, "reason": reason,
+                "attack_types": {}, "decisions": {},
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
     def _save_reports(self):
@@ -194,6 +229,16 @@ class BehavioralAnalyzer:
                 json.dump(self._reports, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"  ⚠️  BA save error : {e}")
+
+    def _get_mean_norm(self) -> float:
+        """Moyenne des norm_L2 sur l'historique récent."""
+        norms = [p.get("norm_L2", 0.0) for p in self._history[-20:]]
+        return float(np.mean(norms)) if norms else 1.0
+
+    def _get_mean_var(self) -> float:
+        """Moyenne des var_delta sur l'historique récent."""
+        vars_ = [p.get("var_delta", 0.0) for p in self._history[-20:]]
+        return float(np.mean(vars_)) if vars_ else 1.0
 
     def classify_attack(self, client_id, features, if_score):
         norm_L2   = features["norm_L2"]
@@ -214,36 +259,73 @@ class BehavioralAnalyzer:
         else:
             return "NORMAL"
         
-    def get_decision(self, client_id, attack_type, if_score):
+    def get_decision(self, client_id: str, attack_type: str) -> str:
         """
         Retourne : NORMAL | ALERT | EXCLUDE | BLACKLIST
+
+        Règles immédiates (prioritaires) :
+          SIGN_FLIP   → BLACKLIST immédiat (1ère détection)
+          BYZANTINE   → EXCLUDE (1ère), BLACKLIST (2ème)
+          FREE_RIDER  → EXCLUDE (1ère), BLACKLIST (3ème)
+          SCALE       → EXCLUDE (1ère), BLACKLIST (3ème)
+          NOISE       → ALERT, EXCLUDE après 3 consécutifs
         """
-        # Nœud déjà blacklisté
+        # Nœud déjà blacklisté définitivement
         if client_id in self._blacklist:
             return "BLACKLIST"
 
+        # Initialiser les compteurs si premier contact
+        if client_id not in self._attack_counts:
+            self._attack_counts[client_id] = {}
+        if client_id not in self._consecutive_alerts:
+            self._consecutive_alerts[client_id] = 0
+
+        counts = self._attack_counts[client_id]
+
+        # ── NORMAL → réinitialiser le compteur consécutif ────────────────────
+        if attack_type == "NORMAL":
+            self._consecutive_alerts[client_id] = 0
+            return "NORMAL"
+
+        # Incrémenter le compteur pour ce type d'attaque
+        counts[attack_type] = counts.get(attack_type, 0) + 1
+        n = counts[attack_type]
+
+        # ── SIGN_FLIP → BLACKLIST immédiat ────────────────────────────────────
         if attack_type == "SIGN_FLIP":
             self._blacklist.add(client_id)
+            print(f"  🚫 Node {client_id} BLACKLISTÉ — SIGN_FLIP détecté")
             return "BLACKLIST"
 
-        elif attack_type == "FREE_RIDER":
-            return "EXCLUDE"
-
-        elif attack_type == "SCALE":
-            return "EXCLUDE"
-
+        # ── BYZANTINE → EXCLUDE (1ère), BLACKLIST (2ème) ─────────────────────
         elif attack_type == "BYZANTINE":
-            # Blacklist après 2 rounds consécutifs
-            self._consecutive_alerts[client_id] += 1
-            if self._consecutive_alerts[client_id] >= 2:
+            if n >= 2:
                 self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — BYZANTINE ×{n}")
                 return "BLACKLIST"
             return "EXCLUDE"
 
+        # ── FREE_RIDER → EXCLUDE, BLACKLIST à la 3ème ─────────────────────────
+        elif attack_type == "FREE_RIDER":
+            if n >= 3:
+                self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — FREE_RIDER ×{n}")
+                return "BLACKLIST"
+            return "EXCLUDE"
+
+        # ── SCALE → EXCLUDE, BLACKLIST à la 3ème ──────────────────────────────
+        elif attack_type == "SCALE":
+            if n >= 3:
+                self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — SCALE ×{n}")
+                return "BLACKLIST"
+            return "EXCLUDE"
+
+        # ── NOISE → ALERT, EXCLUDE après 3 consécutifs ───────────────────────
         elif attack_type == "NOISE":
             self._consecutive_alerts[client_id] += 1
+            if self._consecutive_alerts[client_id] >= 3:
+                return "EXCLUDE"
             return "ALERT"
 
-        else:
-            self._consecutive_alerts[client_id] = 0
-            return "NORMAL"
+        return "NORMAL"
