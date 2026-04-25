@@ -295,10 +295,8 @@ def main():
 
     loaders = get_split_dataloaders(
         data_dir   = str(node_dir),
-        approach   = "B",
         batch_size = BATCH_SIZE,
         seq_len    = SEQ_LEN,
-        val_ratio  = 0.0,
     )
     train_loader = loaders[0]
     val_loader   = loaders[1] if len(loaders) > 1 else loaders[0]
