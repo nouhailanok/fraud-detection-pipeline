@@ -17,8 +17,7 @@ pydantic==2.6.1
 python-dateutil==2.8.2
 pandas
 numpy
-<<<<<<< Updated upstream
+
 prometheus-client>=0.18.0
-=======
+
 bentoml>=1.2.0
->>>>>>> Stashed changes
