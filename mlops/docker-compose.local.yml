@@ -1,0 +1,199 @@
+# ============================================================================
+# docker-compose.local.yml — Nœud Bancaire Local (infra + monitoring)
+# ============================================================================
+# Contexte :
+#   - Ce fichier est destiné à être déployé sur CHAQUE machine locale (4 nœuds).
+#   - Chaque nœud garde ingestion + entrainement FL en LOCAL (hors Docker).
+#   - Docker est reserve a l'infra locale (Kafka/streamer) et monitoring.
+#   - Le Flower Server est sur AWS (défini via FLOWER_SERVER_HOST externe).
+#   - La stack Prometheus/Grafana est incluse pour le monitoring local.
+#
+# Architecture par nœud :
+#   streamer.py (Docker) ──► Kafka (Docker)
+#                                 │
+#                                 ▼
+#                      ingestion_1.py (process local GPU/CUDA)
+#                                 │
+#                                 ▼
+#                      client.py FL (process local GPU/CUDA)
+#                                 │
+#                                 ▼
+#                        Flower Server AWS (FedAvg + mTLS)
+#
+# Monitoring local (Docker) scrape :
+#   - streamer (container)
+#   - ingestion local / client FL local / BentoML local (host.docker.internal)
+#
+# Utilisation :
+#   cp .env.example .env
+#   # Editer .env avec CLIENT_ID, FLOWER_SERVER_HOST, certificats AWS
+#   docker compose -f docker-compose.local.yml up -d
+# ============================================================================
+
+name: fraud-detection-node
+
+services:
+  # --------------------------------------------------------------------------
+  # 1) Zookeeper (dépendance Kafka)
+  # --------------------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - node_network
+
+  # --------------------------------------------------------------------------
+  # 2) Kafka (local au nœud — bus streamer Docker -> ingestion local)
+  # --------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.8.1
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      # 9092 = acces local pour ingestion hors Docker
+      # 9093 = SSL/mTLS (si vous voulez chiffrer même en local)
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9093:9093"
+    command: [ "/opt/kafka/bin/kafka-server-start.sh", "/etc/kafka/server.properties" ]
+    volumes:
+      - kafka-data:/tmp/kafka-logs
+      - ./kafka/server.properties.local:/etc/kafka/server.properties:ro
+      - ../security/certs:/etc/kafka/secrets:ro
+    networks:
+      - node_network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # --------------------------------------------------------------------------
+  # 3) Streamer — Générateur de transactions ISO 8583 vers Kafka
+  # --------------------------------------------------------------------------
+  streamer:
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        CMD ["python", "generator/iso_streamer_1.py"]
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-streamer
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      # Kafka local
+      KAFKA_BROKER: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_TOPIC: topic_raw_transactions_${CLIENT_ID:-1}
+      STREAM_RATE_TPS: "10"                # Transactions par seconde à générer
+      STREAM_DURATION_MINUTES: "0"         # 0 = infini
+      # Identité du nœud
+      CLIENT_ID: ${CLIENT_ID:-1}
+      NODE_NAME: ${NODE_NAME:-bank-node-${CLIENT_ID:-1}}
+      # Monitoring (exposition métriques Prometheus)
+      METRICS_PORT: "8002"
+      METRICS_ENABLED: "true"
+    volumes:
+      - ../:/app
+      - ../logs:/app/logs
+    ports:
+      - "127.0.0.1:8002:8002"             # Métriques streamer (Prometheus)
+    networks:
+      - node_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 4) Prometheus — Scraping local (containers + process host)
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-prometheus
+    restart: unless-stopped
+    depends_on:
+      - streamer
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'          # Pour reload config via API
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - node_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # 5) Grafana — Dashboards monitoring
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Datasource auto-provisionné via fichier
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - node_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+
+# ============================================================================
+# Réseau
+# ============================================================================
+networks:
+  node_network:
+    name: ${COMPOSE_PROJECT_NAME:-fraud_detection_node}_network
+    driver: bridge

@@ -129,7 +129,7 @@ if __name__ == "__main__":
         print(f"\n{model.info()}")
         print(f"Entrée  : {dummy_batch.shape}  → (batch, seq_len, features)")
         print(f"Sortie  : {output.shape}        → (batch, 1)")
-        print(f"Probs   : {torcwh.sigmoid(output).squeeze()[:5].tolist()}")
+        print(f"Probs   : {torch.sigmoid(output).squeeze()[:5].tolist()}")
         print("-" * 60)
 
     print("\n✅ Test terminé")
