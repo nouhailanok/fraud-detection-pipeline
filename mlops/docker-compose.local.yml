@@ -180,6 +180,26 @@ services:
         max-size: "10m"
         max-file: "3"
 
+ # --------------------------------------------------------------------------
+  # Exporter métriques FL (Ajout manquant)
+  # --------------------------------------------------------------------------
+  fl_exporter:
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        RUN pip install prometheus-client
+        CMD ["python", "mlops/monitoring/fl_metrics_exporter.py"]
+    container_name: ${COMPOSE_PROJECT_NAME:-node}-fl-exporter
+    restart: unless-stopped
+    volumes:
+      - ../:/app:ro
+    networks:
+      - node_network
+    ports:
+      - "127.0.0.1:8001:8001"
+
 # ============================================================================
 # Volumes
 # ============================================================================

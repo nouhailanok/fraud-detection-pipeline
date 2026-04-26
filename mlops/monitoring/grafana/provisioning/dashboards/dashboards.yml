@@ -1,0 +1,18 @@
+# mlops/monitoring/grafana/provisioning/dashboards/dashboards.yml
+#
+# Grafana lit ce fichier au démarrage et importe automatiquement
+# tous les fichiers JSON du dossier /var/lib/grafana/dashboards
+# ================================================================
+
+apiVersion: 1
+
+providers:
+  - name: "Fraud Detection Dashboards"
+    orgId: 1
+    type: file
+    disableDeletion: false            # permet suppression depuis l'UI
+    updateIntervalSeconds: 30         # recharge les JSON toutes les 30s
+    allowUiUpdates: true              # permet modification depuis l'UI
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
