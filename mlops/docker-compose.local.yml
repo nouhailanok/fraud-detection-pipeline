@@ -53,6 +53,7 @@ services:
   kafka:
     image: apache/kafka:3.8.1
     container_name: ${COMPOSE_PROJECT_NAME:-node}-kafka
+    user: "0:0"
     depends_on:
       - zookeeper
     ports:
