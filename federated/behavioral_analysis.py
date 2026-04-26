@@ -38,6 +38,11 @@ class BehavioralAnalyzer:
         self._reports     : List[Dict] = []
         self._log_path    = self.logs_dir / "behavioral_analysis.json"
 
+        # Décisions et blacklist
+        self._blacklist          : set             = set()
+        self._consecutive_alerts : Dict[str, int]  = {}
+        self._attack_counts      : Dict[str, Dict] = {}
+
     def set_prev_params(self, aggregated_params) -> None:
         """Mémorise les poids globaux après aggregate_fit."""
         if aggregated_params is None:
@@ -206,6 +211,7 @@ class BehavioralAnalyzer:
     def _empty_report(self, server_round, reason=""):
         return {"round": server_round, "active": False, "features": {},
                 "suspects": [], "scores": {}, "n_points": 0, "reason": reason,
+                "attack_types": {}, "decisions": {},
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
     def _save_reports(self):
@@ -214,6 +220,14 @@ class BehavioralAnalyzer:
                 json.dump(self._reports, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"  ⚠️  BA save error : {e}")
+
+    def _get_mean_norm(self) -> float:
+        norms = [p.get("norm_L2", 0.0) for p in self._history[-20:]]
+        return float(np.mean(norms)) if norms else 1.0
+
+    def _get_mean_var(self) -> float:
+        vars_ = [p.get("var_delta", 0.0) for p in self._history[-20:]]
+        return float(np.mean(vars_)) if vars_ else 1.0
 
     def classify_attack(self, client_id, features, if_score):
         norm_L2   = features["norm_L2"]
@@ -234,7 +248,7 @@ class BehavioralAnalyzer:
         else:
             return "NORMAL"
         
-    def get_decision(self, client_id, attack_type, if_score):
+    def get_decision(self, client_id, attack_type):
         """
         Retourne : NORMAL | ALERT | EXCLUDE | BLACKLIST
         """
@@ -242,28 +256,52 @@ class BehavioralAnalyzer:
         if client_id in self._blacklist:
             return "BLACKLIST"
 
+        # Initialiser les compteurs si premier contact
+        if client_id not in self._consecutive_alerts:
+            self._consecutive_alerts[client_id] = 0
+        if client_id not in self._attack_counts:
+            self._attack_counts[client_id] = {}
+
         if attack_type == "SIGN_FLIP":
+            # SIGN_FLIP → attaque intentionnelle prouvée → BLACKLIST immédiat
             self._blacklist.add(client_id)
+            print(f"  🚫 Node {client_id} BLACKLISTÉ — SIGN_FLIP")
             return "BLACKLIST"
 
-        elif attack_type == "FREE_RIDER":
+        elif attack_type == "NORMAL":
+            self._consecutive_alerts[client_id] = 0
+            return "NORMAL"
+
+        # Incrémenter le compteur par type d'attaque
+        counts = self._attack_counts[client_id]
+        counts[attack_type] = counts.get(attack_type, 0) + 1
+        n = counts[attack_type]
+
+        if attack_type == "FREE_RIDER":
+            if n >= 3:
+                self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — FREE_RIDER ×{n}")
+                return "BLACKLIST"
             return "EXCLUDE"
 
         elif attack_type == "SCALE":
+            if n >= 3:
+                self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — SCALE ×{n}")
+                return "BLACKLIST"
             return "EXCLUDE"
 
         elif attack_type == "BYZANTINE":
-            # Blacklist après 2 rounds consécutifs
-            self._consecutive_alerts[client_id] += 1
-            if self._consecutive_alerts[client_id] >= 2:
+            if n >= 2:
                 self._blacklist.add(client_id)
+                print(f"  🚫 Node {client_id} BLACKLISTÉ — BYZANTINE ×{n}")
                 return "BLACKLIST"
             return "EXCLUDE"
 
         elif attack_type == "NOISE":
             self._consecutive_alerts[client_id] += 1
+            if self._consecutive_alerts[client_id] >= 3:
+                return "EXCLUDE"
             return "ALERT"
 
-        else:
-            self._consecutive_alerts[client_id] = 0
-            return "NORMAL"
+        return "NORMAL"

@@ -139,30 +139,59 @@ class FraudDetectionService:
         dob: Optional[str] = None
 
 
-    def build_sequence(self,pan_id: str, current_vector: np.ndarray) -> np.ndarray:
+    # def build_sequence(self,pan_id: str, current_vector: np.ndarray) -> np.ndarray:
+    #     """
+    #     Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
+    #     Si l'historique est insuffisant, padding par répétition du vecteur courant.
+    #     """
+    #     # global user_history
+
+    #     if pan_id not in self.user_history:
+    #         self.user_history[pan_id] = []
+
+    #     history = self.user_history[pan_id]
+    #     history.append(current_vector)
+
+    #     # Garder uniquement SEQ_LEN dernières transactions
+    #     if len(history) > SEQ_LEN:
+    #         history = history[-SEQ_LEN:]
+    #         self.user_history[pan_id] = history
+
+    #     # Padding si nécessaire
+    #     seq = history.copy()
+    #     while len(seq) < SEQ_LEN:
+    #         seq.insert(0, current_vector)
+
+    #     return np.stack(seq, axis=0)  # [seq_len, n_features]
+
+    def build_sequence(self, pan_id: str, current_vector: np.ndarray) -> np.ndarray:
         """
         Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
-        Si l'historique est insuffisant, padding par répétition du vecteur courant.
+ 
+        Logique identique à FraudSequenceDataset dans dataloader.py :
+          - Ajoute la transaction courante à l'historique de l'utilisateur
+          - Si historique < SEQ_LEN → padding par ZÉROS au début
+          - Si historique >= SEQ_LEN → fenêtre glissante sur les SEQ_LEN dernières
+ 
+        Exemple avec SEQ_LEN=5 :
+          txn 1 → [0, 0, 0, 0, v1]
+          txn 2 → [0, 0, 0, v1, v2]
+          txn 5 → [v1, v2, v3, v4, v5]  ← séquence complète
+          txn 6 → [v2, v3, v4, v5, v6]  ← fenêtre glissante
         """
-        # global user_history
-
-        if pan_id not in self.user_history:
-            self.user_history[pan_id] = []
-
-        history = self.user_history[pan_id]
-        history.append(current_vector)
-
-        # Garder uniquement SEQ_LEN dernières transactions
-        if len(history) > SEQ_LEN:
-            history = history[-SEQ_LEN:]
-            self.user_history[pan_id] = history
-
-        # Padding si nécessaire
-        seq = history.copy()
-        while len(seq) < SEQ_LEN:
-            seq.insert(0, current_vector)
-
-        return np.stack(seq, axis=0)  # [seq_len, n_features]
+        # Ajouter la transaction courante à l'historique
+        self.user_history[pan_id].append(current_vector.copy())
+ 
+        # Garder uniquement les SEQ_LEN dernières transactions
+        history = self.user_history[pan_id][-SEQ_LEN:]
+        self.user_history[pan_id] = history
+ 
+        # Padding par zéros si historique insuffisant (même logique que dataloader.py)
+        n_pad = SEQ_LEN - len(history)
+        zero_pad = [np.zeros_like(current_vector) for _ in range(n_pad)]
+        seq = zero_pad + list(history)
+ 
+        return np.stack(seq, axis=0)  # (SEQ_LEN, n_features)
     
     def _make_prediction(self, sequence: np.ndarray) -> tuple:
         """
