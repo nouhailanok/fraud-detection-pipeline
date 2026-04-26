@@ -115,10 +115,14 @@ def apply_attack(
 
     # ── SIGN_FLIP — inverse la direction des deltas ───────────────────────────
     elif attack_type == "SIGN_FLIP":
-        print(f"     → Inversion des deltas (cos_sim sera < -0.5)")
-        # Delta inversé × 5 pour garantir cos_sim très négatif vs moyenne des pairs
-        # Sans facteur fort, cos_sim reste positif si les autres nœuds dominent la moyenne
-        manipulated = [o + (-5.0 * d) for o, d in zip(original_params, deltas)]
+        print(f"     → Inversion forte des deltas × -15 (force cos_sim < -0.5)")
+        # Facteur -15 : nécessaire pour contrebalancer 3 nœuds honnêtes
+        # dans le calcul de cos_sim vs moyenne des pairs
+        # cos_sim = dot(delta_i, mean_delta) / (||delta_i|| * ||mean_delta||)
+        # mean_delta = (3×honnête + 1×inversé×15) / 4
+        # → mean_delta fortement tiré vers le négatif
+        # → cos_sim de node_4 très négatif
+        manipulated = [o + (-15.0 * d) for o, d in zip(original_params, deltas)]
         return manipulated
 
     # ── SCALE — amplifie les deltas × SCALE_FACTOR ───────────────────────────

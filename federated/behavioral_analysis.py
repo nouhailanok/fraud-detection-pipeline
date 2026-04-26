@@ -83,13 +83,31 @@ class BehavioralAnalyzer:
             report["suspects"] = suspects
             report["scores"]   = scores
 
+            # ── Classification + Décisions ────────────────────────────────
+            attack_types = {}
+            decisions    = {}
+
+            for cid in list(node_features.keys()):
+                feats    = node_features[cid]
+                if_score = scores.get(cid, 0.0)
+                attack   = self.classify_attack(cid, feats, if_score) if cid in suspects else "NORMAL"
+                decision = self.get_decision(cid, attack)
+                attack_types[cid] = attack
+                decisions[cid]    = decision
+
+            report["attack_types"] = attack_types
+            report["decisions"]    = decisions
+
             if suspects:
                 print(f"\n  🚨 BEHAVIORAL ALERT — Round {server_round}")
                 for cid in suspects:
-                    feats = node_features.get(cid, {})
-                    print(f"     Nœud {cid} → norm_L2={feats.get('norm_L2', 0):.4f}  "
-                          f"cos_sim={feats.get('cos_sim', 0):.4f}  "
-                          f"score_IF={scores.get(cid, 0):.4f}")
+                    feats    = node_features.get(cid, {})
+                    attack   = attack_types.get(cid, "?")
+                    decision = decisions.get(cid, "?")
+                    print(f"     Nœud {cid} → {attack} → {decision}"
+                          f"  norm_L2={feats.get('norm_L2', 0):.4f}"
+                          f"  cos_sim={feats.get('cos_sim', 0):.4f}"
+                          f"  score_IF={scores.get(cid, 0):.4f}")
             else:
                 print(f"  ✅ Behavioral OK — Round {server_round} "
                       f"({len(node_features)} nœuds)")
@@ -97,7 +115,9 @@ class BehavioralAnalyzer:
             reason = (f"calibration (round {server_round} < {self.activation_round})"
                       if server_round < self.activation_round
                       else "pas assez de points")
-            report["reason"] = reason
+            report["reason"]       = reason
+            report["attack_types"] = {}
+            report["decisions"]    = {}
             print(f"  🔬 Behavioral — {reason}")
 
         self._reports.append(report)
