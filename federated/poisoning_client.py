@@ -116,8 +116,9 @@ def apply_attack(
     # ── SIGN_FLIP — inverse la direction des deltas ───────────────────────────
     elif attack_type == "SIGN_FLIP":
         print(f"     → Inversion des deltas (cos_sim sera < -0.5)")
-        # Delta inversé × 2 pour garantir cos_sim très négatif
-        manipulated = [o + (-2.0 * d) for o, d in zip(original_params, deltas)]
+        # Delta inversé × 5 pour garantir cos_sim très négatif vs moyenne des pairs
+        # Sans facteur fort, cos_sim reste positif si les autres nœuds dominent la moyenne
+        manipulated = [o + (-5.0 * d) for o, d in zip(original_params, deltas)]
         return manipulated
 
     # ── SCALE — amplifie les deltas × SCALE_FACTOR ───────────────────────────
@@ -231,12 +232,15 @@ class PoisoningClient(fl.client.NumPyClient):
             var_d    = float(np.var(delta_flat))
             print(f"     norm_L2={norm_L2:.4f}  var_delta={var_d:.4f}")
 
+        # Normaliser l'ID pour correspondre au format des autres nœuds
+        node_id = f"node_{self.client_id}" if not self.client_id.startswith("node_") else self.client_id
+
         return (
             manipulated_params,
             len(self.train_loader.dataset),
             {
                 "train_loss": avg_loss,
-                "client_id" : self.client_id,
+                "client_id" : node_id,
                 "epsilon"   : 0.0,
                 "attack"    : ATTACK_TYPE,
             },
