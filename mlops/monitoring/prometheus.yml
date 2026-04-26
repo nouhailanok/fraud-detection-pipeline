@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s       # Fréquence de collecte des métriques
+  evaluation_interval: 15s   # Fréquence d'évaluation des alertes
+
+# ── Règles d'alerte ───────────────────────────────────────────────────────
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+
+  # ------------------------------------------------------------------ #
+  # Source 1 — BentoML API (métriques HTTP, latence, prédictions)      #
+  # BentoML expose automatiquement /metrics au format Prometheus        #
+  # ------------------------------------------------------------------ #
+  - job_name: "bentoml_fraud_api"
+    static_configs:
+      - targets: ["fraud_api:3000"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # ------------------------------------------------------------------ #
+  # Source 2 — Exporter custom FL                                       #
+  # Expose recall, f1, epsilon, behavioral alerts par run               #
+  # ------------------------------------------------------------------ #
+  - job_name: "fl_metrics_exporter"
+    static_configs:
+      - targets: ["fl_exporter:8001"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # ------------------------------------------------------------------ #
+  # Source 3 — Prometheus lui-même (auto-monitoring)                    #
+  # ------------------------------------------------------------------ #
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,0 +1,11 @@
+service: "mlops.serving.bentoml_service:FraudDetectionService"
+
+labels:
+  owner: nouhaila
+  project: fraud-detection
+
+include:
+  - mlops/
+
+python:
+  requirements_txt: requirements.txt

@@ -1,0 +1,35 @@
+TERMINAL 1
+bentoml serve mlops/serving/bentoml_service.py:FraudDetectionService --port 3001
+
+
+TERMINAL 2 
+pip install -U fastapi starlette uvicorn
+uvicorn api_gateway.fastapi_app:app --reload --port 8000
+
+TERMINAL 3 
+curl http://localhost:8000/health
+
+
+curl  http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_data": {
+      "pan_id": "USER_001",
+      "amount": 250.50,
+      "lat": 48.8566,
+      "long": 2.3522,
+      "merchant": "AMAZON",
+      "trans_date_trans_time": "2019-01-01 06:48:36",
+      "mcc": "5999",
+      "dob": "1990-01-01"
+    }
+  }'
+
+
+curl http://localhost:8000/model/info 
+
+
+curl http://localhost:8000/metrics    
+
+
+
