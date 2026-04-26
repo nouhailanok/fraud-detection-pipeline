@@ -5,10 +5,10 @@ bentoml serve mlops/serving/bentoml_service.py:FraudDetectionService --port 3001
 TERMINAL 2 
 
 
-curl -X POST  http://localhost:3001/health
+curl.exe -X POST http://localhost:3001/health
 
 
-curl -X POST http://localhost:3001/predict \
+curl.exe -X POST http://localhost:3001/predict \
   -H "Content-Type: application/json" \
   -d '{
     "input_data": {
@@ -25,7 +25,7 @@ curl -X POST http://localhost:3001/predict \
 
 for i in {1..10}
 do
-curl -X POST http://localhost:3001/predict \
+curl.exe -X POST http://localhost:3001/predict \
   -H "Content-Type: application/json" \
   -d '{
     "input_data": {
@@ -43,8 +43,8 @@ echo ""
 done
 
 
-curl -X POST  http://localhost:3001/metrics
+curl.exe -X POST  http://localhost:3001/metrics
 
 
-curl -X POST  http://localhost:3001/model/info
+curl.exe -X POST  http://localhost:3001/model/info
 

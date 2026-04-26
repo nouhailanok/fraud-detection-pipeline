@@ -19,17 +19,18 @@ services:
         FROM python:3.11-slim
         WORKDIR /app
         RUN pip install --no-cache-dir prometheus-client
-        CMD ["python", "server_monitoring/flower_state_exporter.py"]
+        CMD ["python", "monitoring/fl_metrics_exporter.py"]
     container_name: ${COMPOSE_PROJECT_NAME:-fl-server}-state-exporter
     restart: unless-stopped
     environment:
-      FL_RUNS_DIR: /app/logs/runs
+      FL_RUNS_DIR: /logs/runs
       FL_REGISTRY_FILE: /app/model_registry/registry.json
       FL_BEST_MODEL_META: /app/model_registry/best_model/metadata.json
       FL_EXPORTER_POLL_SECONDS: ${FL_EXPORTER_POLL_SECONDS:-15}
       FL_EXPORTER_PORT: ${FL_EXPORTER_PORT:-9108}
     volumes:
       - .:/app:ro
+      - ../logs:/logs:ro
     ports:
       - "127.0.0.1:${FL_EXPORTER_PORT:-9108}:9108"
     networks:
@@ -47,22 +48,13 @@ services:
       - '--storage.tsdb.retention.time=14d'
       - '--web.enable-lifecycle'
     volumes:
-      - ./server_monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./server_monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus-server-data:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:${SERVER_PROMETHEUS_PORT:-9190}:9090"
-    networks:
-      - server_network
-
-  pushgateway:
-    image: prom/pushgateway:v1.9.0
-    container_name: ${COMPOSE_PROJECT_NAME:-fl-server}-pushgateway
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${SERVER_PUSHGATEWAY_PORT:-9191}:9091"
+      - "0.0.0.0:${SERVER_PROMETHEUS_PORT:-9090}:9090"
     networks:
       - server_network
 
@@ -76,46 +68,14 @@ services:
       GF_SECURITY_ADMIN_USER: ${SERVER_GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${SERVER_GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: ${SERVER_GRAFANA_ROOT_URL:-http://localhost:3300}
+      GF_SERVER_ROOT_URL: ${SERVER_GRAFANA_ROOT_URL:-http://localhost:3000}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
-      - ./server_monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./server_monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-server-data:/var/lib/grafana
     ports:
-      - "127.0.0.1:${SERVER_GRAFANA_PORT:-3300}:3000"
-    networks:
-      - server_network
-
-  node_exporter:
-    image: prom/node-exporter:v1.8.1
-    container_name: ${COMPOSE_PROJECT_NAME:-fl-server}-node-exporter
-    restart: unless-stopped
-    command:
-      - '--path.rootfs=/host'
-    volumes:
-      - /:/host:ro,rslave
-    ports:
-      - "127.0.0.1:${SERVER_NODE_EXPORTER_PORT:-19100}:9100"
-    networks:
-      - server_network
-    pid: host
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: ${COMPOSE_PROJECT_NAME:-fl-server}-cadvisor
-    restart: unless-stopped
-    privileged: true
-    devices:
-      - /dev/kmsg:/dev/kmsg
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "127.0.0.1:${SERVER_CADVISOR_PORT:-18080}:8080"
+      - "0.0.0.0:${SERVER_GRAFANA_PORT:-3000}:3000"
     networks:
       - server_network
 

@@ -28,7 +28,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(bentoml_request_total[1m]) * 60",
+          "expr": "sum(rate(bentoml_service_request_total{endpoint=\"/predict\",http_response_code=~\"2..\"}[1m])) * 60 or vector(0)",
           "legendFormat": "Prédictions / min",
           "refId": "A"
         }
@@ -37,7 +37,7 @@
 
     {
       "id": 2,
-      "title": "Latence API — p50 et p99",
+      "title": "Trafic API — 2xx et 5xx",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "options": {
@@ -48,7 +48,7 @@
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": { "lineWidth": 2 },
-          "unit": "s",
+          "unit": "reqps",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -63,14 +63,14 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, rate(bentoml_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "p50",
+          "expr": "sum(rate(bentoml_service_request_total{endpoint=\"/predict\",http_response_code=~\"2..\"}[5m])) or vector(0)",
+          "legendFormat": "2xx / s",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, rate(bentoml_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "p99",
+          "expr": "sum(rate(bentoml_service_request_total{endpoint=\"/predict\",http_response_code=~\"5..\"}[5m])) or vector(0)",
+          "legendFormat": "5xx / s",
           "refId": "B"
         }
       ]
@@ -78,7 +78,7 @@
 
     {
       "id": 3,
-      "title": "FRAUD vs LEGIT détectés",
+      "title": "Répartition des endpoints (1h)",
       "type": "piechart",
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
       "options": {
@@ -102,17 +102,10 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "bentoml_fraud_detected_total",
-          "legendFormat": "FRAUD",
+          "expr": "sum by (endpoint) (increase(bentoml_service_request_total[1h]))",
+          "legendFormat": "{{endpoint}}",
           "instant": true,
           "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "bentoml_legit_detected_total",
-          "legendFormat": "LEGIT",
-          "instant": true,
-          "refId": "B"
         }
       ]
     },
@@ -136,7 +129,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(bentoml_request_total{status=~\"5..\"}[5m])",
+          "expr": "sum(rate(bentoml_service_request_total{endpoint=\"/predict\",http_response_code=~\"5..\"}[5m])) or vector(0)",
           "legendFormat": "Erreurs 5xx / s",
           "refId": "A"
         }
@@ -167,7 +160,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "bentoml_request_total",
+          "expr": "sum(bentoml_service_request_total{endpoint=\"/predict\",http_response_code=~\"2..|5..\"}) or vector(0)",
           "legendFormat": "Total prédictions",
           "refId": "A"
         }

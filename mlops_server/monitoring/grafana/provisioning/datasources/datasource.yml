@@ -1,0 +1,18 @@
+# mlops/monitoring/grafana/provisioning/datasources/datasource.yml
+#
+# Grafana lit ce fichier au démarrage et connecte automatiquement
+# Prometheus comme datasource — aucune action manuelle requise.
+# ================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://bank-node-1-prometheus:9090       # nom du service Docker
+    isDefault: true
+    editable: false                   # empêche la modification accidentelle
+    jsonData:
+      scrapeInterval: "15s"
+      httpMethod: POST
