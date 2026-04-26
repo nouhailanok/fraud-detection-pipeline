@@ -66,7 +66,12 @@ try:
     model_ref = bentoml.models.get("fraud_dpgru_v1:latest")
     # model_ref = bentoml.pytorch.get("fraud_dpgru_v1:latest")
     with torch.serialization.safe_globals([FraudLSTM,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
-        model = model_ref.load_model()
+        try:
+            # PyTorch 2.6+ uses a safer default that can block custom classes.
+            model = model_ref.load_model(weights_only=False)
+        except TypeError:
+            # Backward compatibility for BentoML versions that do not expose this kwarg.
+            model = model_ref.load_model()
     model.eval()
     model_metadata = model_ref.info.metadata if model_ref else {}
     print("[OK] Modèle chargé avec BentoML")
@@ -186,12 +191,14 @@ class FraudDetectionService:
 
         Input JSON exemple :
         {
-            "pan_id": "DE123_abc",
-            "amount": 250.00,
-            "merchant": "AMAZON",
-            "lat": 48.8566,
-            "long": 2.3522,
-            "trans_date_trans_time": "2019-01-01 06:48:36"
+            "input_data": {
+                "pan_id": "DE123_abc",
+                "amount": 250.00,
+                "merchant": "AMAZON",
+                "lat": 48.8566,
+                "long": 2.3522,
+                "trans_date_trans_time": "2019-01-01 06:48:36"
+            }
         }
 
         Output JSON :
