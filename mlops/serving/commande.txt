@@ -1,0 +1,50 @@
+TERMINAL 1 
+bentoml serve mlops/serving/bentoml_service.py:FraudDetectionService --port 3001
+
+
+TERMINAL 2 
+
+
+curl -X POST  http://localhost:3001/health
+
+
+curl -X POST http://localhost:3001/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_data": {
+      "pan_id": "USER_001",
+      "amount": 250.50,
+      "lat": 48.8566,
+      "long": 2.3522,
+      "merchant": "AMAZON",
+      "trans_date_trans_time": "2019-01-01 06:48:36",
+      "mcc": "5999",
+      "dob": "1990-01-01"
+    }
+  }'
+
+for i in {1..10}
+do
+curl -X POST http://localhost:3001/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_data": {
+      "pan_id": "USER_001",
+      "amount": '"$((100 + i))"',
+      "lat": 48.8566,
+      "long": 2.3522,
+      "merchant": "AMAZON",
+      "trans_date_trans_time": "2019-01-01 06:48:36",
+      "mcc": "5999",
+      "dob": "1990-01-01"
+    }
+  }'
+echo ""
+done
+
+
+curl -X POST  http://localhost:3001/metrics
+
+
+curl -X POST  http://localhost:3001/model/info
+
