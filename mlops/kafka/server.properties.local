@@ -1,0 +1,15 @@
+broker.id=1
+zookeeper.connect=zookeeper:2181
+listeners=INTERNAL_PLAINTEXT://0.0.0.0:9092,EXTERNAL_SSL://0.0.0.0:9093
+advertised.listeners=INTERNAL_PLAINTEXT://kafka:9092,EXTERNAL_SSL://127.0.0.1:9093
+listener.security.protocol.map=INTERNAL_PLAINTEXT:PLAINTEXT,EXTERNAL_SSL:SSL
+inter.broker.listener.name=INTERNAL_PLAINTEXT
+ssl.keystore.type=PEM
+ssl.keystore.location=/etc/kafka/secrets/server.pem
+ssl.truststore.type=PEM
+ssl.truststore.location=/etc/kafka/secrets/ca.crt
+ssl.client.auth=required
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.dirs=/tmp/kafka-logs
