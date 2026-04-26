@@ -115,17 +115,17 @@ class ModelRegistry:
                                   epsilon: float, trust: float) -> float:
         """
         Score composite [0, 1] — plus élevé = meilleur candidat.
-          recall  × 0.40  ← priorité absolue (détecter les fraudes)
-          f1      × 0.25  ← équilibre précision/recall
-          privacy × 0.20  ← récompense un ε faible
-          trust   × 0.15  ← entraînement propre (behavioral)
+          recall  × 0.35  ← priorité absolue (détecter les fraudes)
+          f1      × 0.30  ← équilibre précision/recall
+          privacy × 0.15  ← récompense un ε faible
+          trust   × 0.20  ← entraînement propre (behavioral)
         """
         privacy_score = max(0.0, 1.0 - epsilon)
         score = (
             recall        * 0.35 +
             f1            * 0.30 +
-            privacy_score * 0.20 +
-            trust         * 0.15
+            privacy_score * 0.15 +
+            trust         * 0.20
         )
         return round(score, 4)
 
