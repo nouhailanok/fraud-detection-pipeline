@@ -114,8 +114,8 @@ docker compose -f docker-compose.server.yml --env-file .env up -d
 
 Default ports:
 
-- Prometheus server: `http://localhost:9090`
-- Grafana server: `http://localhost:3000`
+- Prometheus server: `http://localhost:9190`
+- Grafana server: `http://localhost:3300`
 - Flower state exporter: `http://localhost:9108/metrics`
 
 If Flower exposes metrics on another port than `9095`, update `server_monitoring/prometheus.yml` target `flower_server`.

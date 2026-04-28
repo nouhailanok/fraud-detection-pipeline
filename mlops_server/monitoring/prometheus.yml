@@ -12,22 +12,21 @@ scrape_configs:
   # Source 1 — BentoML API (métriques HTTP, latence, prédictions)      #
   # BentoML expose automatiquement /metrics au format Prometheus        #
   # ------------------------------------------------------------------ #
-  - job_name: "bentoml_fraud_api"
-    static_configs:
-      # - targets: ["fraud_api:3000"]
-      - targets: ["host.docker.internal:3001"]
-    metrics_path: /metrics
-    scrape_interval: 15s
+  #  - job_name: "bentoml_fraud_api"
+  #   static_configs:
+  #    - targets: ["fraud_api:3000"]
+  # metrics_path: /metrics
+  # scrape_interval: 15s
 
   # ------------------------------------------------------------------ #
   # Source 2 — Exporter custom FL                                       #
   # Expose recall, f1, epsilon, behavioral alerts par run               #
   # ------------------------------------------------------------------ #
-  # - job_name: "fl_metrics_exporter"
-  #   static_configs:
-  #     - targets: ["fl_exporter:8001"]
-  #   metrics_path: /metrics
-  #   scrape_interval: 30s
+  - job_name: "fl_metrics_exporter"
+    static_configs:
+      - targets: ["flower_state_exporter:9108"]
+    metrics_path: /metrics
+    scrape_interval: 30s
 
   # ------------------------------------------------------------------ #
   # Source 3 — Prometheus lui-même (auto-monitoring)                    #

@@ -1,0 +1,88 @@
+# mlops/monitoring/alert_rules.yml
+# Chargé par prometheus.yml via rule_files
+
+groups:
+
+  - name: fl_performance
+    interval: 30s
+    rules:
+      - alert: RecallCritique
+        expr: fl_recall < 0.50
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Recall trop bas — {{ $labels.run }}"
+          description: "recall={{ $value | printf \"%.4f\" }} < 0.50"
+
+      - alert: F1Faible
+        expr: fl_f1 < 0.50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "F1 faible — {{ $labels.run }}"
+          description: "f1={{ $value | printf \"%.4f\" }}"
+
+  - name: dp_budget
+    interval: 30s
+    rules:
+      - alert: BudgetDPWarning
+        expr: fl_epsilon_max > 0.70
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Budget DP à 70% — {{ $labels.run }}"
+          description: "epsilon={{ $value | printf \"%.4f\" }}"
+
+      - alert: BudgetDPCritique
+        expr: fl_epsilon_max > 0.90
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Budget DP critique — {{ $labels.run }}"
+          description: "epsilon={{ $value | printf \"%.4f\" }} > 0.90"
+
+  - name: behavioral
+    interval: 30s
+    rules:
+      - alert: NoeudSuspect
+        expr: fl_ba_alerts_total > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nœud suspect — {{ $labels.run }}"
+          description: "{{ $value }} alerte(s) behavioral"
+
+      - alert: TrustScoreFaible
+        expr: fl_trust_score < 0.70
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trust score faible — {{ $labels.run }}"
+          description: "trust={{ $value | printf \"%.4f\" }}"
+
+  - name: api_production
+    interval: 15s
+    rules:
+      - alert: LatenceElevee
+        expr: histogram_quantile(0.99, rate(bentoml_request_duration_seconds_bucket[5m])) > 0.200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence p99 > 200ms"
+          description: "p99={{ $value | printf \"%.0f\" }}ms"
+
+      - alert: TauxErreurEleve
+        expr: rate(bentoml_request_total{status=~"5.."}[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Erreurs 5xx > 1%"
+          description: "Vérifier les logs du service fraud_api"
