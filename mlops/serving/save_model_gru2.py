@@ -33,7 +33,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 try:
-    from models.fraud_rnn import build_model
+    from models.fraud_rnn2 import build_model
 except ImportError:
     from models.fraud_lstm import build_model
 
@@ -106,7 +106,7 @@ def load_checkpoint(checkpoint_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Save promoted FL model to BentoML store")
     parser.add_argument("--best-model-dir", help="Path to best_model directory", default=None)
-    parser.add_argument("--model-name", help="BentoML model name", default=os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru_v1"))
+    parser.add_argument("--model-name", help="BentoML model name", default=os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru2_v1"))
     args = parser.parse_args()
 
     best_model_dir = resolve_best_model_dir(args.best_model_dir)
@@ -166,15 +166,11 @@ def main():
             "param_5": "gru.bias_ih_l1",
             "param_6": "gru.weight_hh_l1",
             "param_7": "gru.bias_hh_l1",
-            "param_8": "gru.weight_ih_l2",
-            "param_9": "gru.bias_ih_l2",
-            "param_10": "gru.weight_hh_l2",
-            "param_11": "gru.bias_hh_l2",
-            "param_12": "classifier.0.weight",
-            "param_13": "classifier.0.bias",
-            "param_14": "classifier.3.weight",
-            "param_15": "classifier.3.bias"
-        }
+            "param_8": "classifier.0.weight",
+            "param_9": "classifier.0.bias",
+            "param_10": "classifier.3.weight",
+            "param_11": "classifier.3.bias",
+    }
         data = dict(np.load(path, allow_pickle=True))
         print("\n===== CHECKPOINT PARAMS =====")
         state_dict = {}

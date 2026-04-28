@@ -26,7 +26,7 @@ from features.vectorizer import TransactionVectorizer
 
 from collections import defaultdict
 from pydantic import BaseModel
-from torch.nn import LSTM, Linear, Dropout, Embedding,Sequential,ReLU,GRU 
+from torch.nn import LSTM, Linear, Dropout, Embedding,Sequential,ReLU
 
 
 try:
@@ -36,6 +36,7 @@ try:
 except ImportError:
     OPACUS_AVAILABLE = False
     print("[ERROR]Opacus not found")
+    
 
 # from models.fraud_lstm import build_model
 
@@ -43,15 +44,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 try:
-    from models.fraud_rnn import FraudRNN
     from models.fraud_lstm import FraudLSTM
-    print("[OK] FraudRNN chargé")
+    print("[OK] FraudLSTM chargé")
+
 except ImportError:
-    
-    print("[ERROR] Impossible d'importer FraudRNN")
+    from models.fraud_rnn import FraudRNN
+    print("[ERROR] Impossible d'importer FraudLSTM")
 
 # ── Configuration ──
-MODEL_NAME = os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru_v1:latest")
+MODEL_NAME = os.getenv("BENTOML_MODEL_NAME", "fraud_dplstm_v1:latest")
 SEQ_LEN = int(os.getenv("FL_SEQ_LEN", "5"))
 THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.5"))
 
@@ -62,23 +63,22 @@ THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.5"))
 # ============================================================================
 torch.serialization.add_safe_globals([
     FraudLSTM,
-    FraudRNN,
-    GRU,
     LSTM,
-    DPGRU,
+    DPGRU , 
     DPLSTM,
     Linear,
     Dropout,
     Embedding,
-    Sequential,ReLU
+    Sequential,
+    ReLU
 ])
 
 # ── Charger le modèle BentoML ──
 try:
     # model_ref = bentoml.models.get(MODEL_NAME)
-    model_ref = bentoml.models.get("fraud_dpgru_v1:latest")
-    # model_ref = bentoml.pytorch.get("fraud_dpgru_v1:latest")
-    with torch.serialization.safe_globals([FraudLSTM,FraudRNN,DPGRU , DPLSTM,GRU,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
+    model_ref = bentoml.models.get("fraud_lstm_v1:latest")
+    # model_ref = bentoml.pytorch.get("fraud_dplstm_v1:latest")
+    with torch.serialization.safe_globals([FraudLSTM,DPLSTM,DPGRU,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
         try:
             # PyTorch 2.6+ uses a safer default that can block custom classes.
             model = model_ref.load_model(weights_only=False)
@@ -177,6 +177,7 @@ class FraudDetectionService:
 
     #     return np.stack(seq, axis=0)  # [seq_len, n_features]
 
+
     def build_sequence(self, pan_id: str, current_vector: np.ndarray) -> np.ndarray:
         """
         Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
@@ -206,6 +207,7 @@ class FraudDetectionService:
  
         return np.stack(seq, axis=0)  # (SEQ_LEN, n_features)
     
+    
     def _make_prediction(self, sequence: np.ndarray) -> tuple:
         """
         Passe la séquence dans le modèle DPGRU et retourne (prediction, probability).
@@ -234,14 +236,12 @@ class FraudDetectionService:
 
         Input JSON exemple :
         {
-            "input_data": {
-                "pan_id": "DE123_abc",
-                "amount": 250.00,
-                "merchant": "AMAZON",
-                "lat": 48.8566,
-                "long": 2.3522,
-                "trans_date_trans_time": "2019-01-01 06:48:36"
-            }
+            "pan_id": "DE123_abc",
+            "amount": 250.00,
+            "merchant": "AMAZON",
+            "lat": 48.8566,
+            "long": 2.3522,
+            "trans_date_trans_time": "2019-01-01 06:48:36"
         }
 
         Output JSON :
@@ -250,7 +250,7 @@ class FraudDetectionService:
             "probability": 0.12,
             "threshold": 0.5,
             "latency_ms": 8.4,
-            "model_version": "fraud_dpgru_v1",
+            "model_version": "fraud_dplstm_v1",
             "sequence_length": 5
         }
         """

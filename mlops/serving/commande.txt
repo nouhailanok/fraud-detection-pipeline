@@ -1,6 +1,6 @@
 TERMINAL 1 
 bentoml serve mlops/serving/bentoml_service.py:FraudDetectionService --port 3001
-
+bentoml serve mlops.serving.bentoml_service:FraudDetectionService --port 3001
 
 TERMINAL 2 
 
