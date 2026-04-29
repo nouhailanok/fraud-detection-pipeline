@@ -10,7 +10,7 @@
 #
 # Ce script :
 #   1. Charge le checkpoint .npz (ou .pt)
-#   2. Reconstruit l'architecture DPGRU via build_model()
+#   2. Reconstruit l'architecture DPLSTM via build_model()
 #   3. Injecte les poids dans le modèle
 #   4. Sauvegarde dans le BentoML Model Store avec les métriques en tags
 # ============================================================================
@@ -33,9 +33,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 try:
-    from models.fraud_rnn import build_model
-except ImportError:
     from models.fraud_lstm import build_model
+except ImportError:
+    from models.fraud_rnn import build_model
 
 # ── BentoML ──
 try:
@@ -106,7 +106,7 @@ def load_checkpoint(checkpoint_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Save promoted FL model to BentoML store")
     parser.add_argument("--best-model-dir", help="Path to best_model directory", default=None)
-    parser.add_argument("--model-name", help="BentoML model name", default=os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru_v1"))
+    parser.add_argument("--model-name", help="BentoML model name", default=os.getenv("BENTOML_MODEL_NAME", "fraud_dplstm_v1"))
     args = parser.parse_args()
 
     best_model_dir = resolve_best_model_dir(args.best_model_dir)
@@ -142,7 +142,7 @@ def main():
     print(f"[INFO] Trust score  : {trust_score:.2f}")
 
     # ── Reconstruire le modèle ──
-    print("\n[INFO] Reconstruction du modèle DPGRU...")
+    print("\n[INFO] Reconstruction du modèle DPLSTM...")
     model = build_model()
     print(f"[INFO] Architecture : {type(model).__name__}")
     model.eval()
@@ -158,22 +158,18 @@ def main():
     if path.suffix == ".npz":
         print(f"[INFO] Checkpoint au format .npz détecté. Tentative de chargement...")
         mapping = {
-            "param_0": "gru.weight_ih_l0",
-            "param_1": "gru.bias_ih_l0",
-            "param_2": "gru.weight_hh_l0",
-            "param_3": "gru.bias_hh_l0",
-            "param_4": "gru.weight_ih_l1",
-            "param_5": "gru.bias_ih_l1",
-            "param_6": "gru.weight_hh_l1",
-            "param_7": "gru.bias_hh_l1",
-            "param_8": "gru.weight_ih_l2",
-            "param_9": "gru.bias_ih_l2",
-            "param_10": "gru.weight_hh_l2",
-            "param_11": "gru.bias_hh_l2",
-            "param_12": "classifier.0.weight",
-            "param_13": "classifier.0.bias",
-            "param_14": "classifier.3.weight",
-            "param_15": "classifier.3.bias"
+            "param_0": "lstm.weight_ih_l0",
+            "param_1": "lstm.bias_ih_l0",
+            "param_2": "lstm.weight_hh_l0",
+            "param_3": "lstm.bias_hh_l0",
+            "param_4": "lstm.weight_ih_l1",
+            "param_5": "lstm.bias_ih_l1",
+            "param_6": "lstm.weight_hh_l1",
+            "param_7": "lstm.bias_hh_l1",
+            "param_8": "classifier.0.weight",
+            "param_9": "classifier.0.bias",
+            "param_10": "classifier.3.weight",
+            "param_11": "classifier.3.bias",
         }
         data = dict(np.load(path, allow_pickle=True))
         print("\n===== CHECKPOINT PARAMS =====")
@@ -206,7 +202,7 @@ def main():
         "trust_score": trust_score,
         "composite_score": metadata.get("composite_score", 0.0),
         "run_name": run_name,
-        "architecture": metadata.get("architecture", "DPGRU"),
+        "architecture": metadata.get("architecture", "DPLSTM"),
         "promoted_at": metadata.get("promoted_at", "unknown"),
     }
 
@@ -221,7 +217,7 @@ def main():
     print(f"     Tag   : {saved.tag}")
     print(f"     Path  : {saved.path}")
     print("\n[INFO] Pour servir le modele :")
-    print("     bentoml serve serving/bentoml_service.py:FraudDetectionService --port 3001")
+    print("     bentoml serve serving/bentoml_service.py:svc --port 3001")
 
 
 if __name__ == "__main__":

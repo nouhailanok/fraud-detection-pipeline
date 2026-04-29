@@ -1,6 +1,6 @@
 {
-  "production": "2026-04-20_19-48-16_saad",
-  "last_updated": "2026-04-26 01:33:40",
+  "production": "2026-04-23_17-13-33_imane",
+  "last_updated": "2026-04-28 15:18:53",
   "models": [
     {
       "id": "2026-04-20_19-48-16_saad",
@@ -14,7 +14,7 @@
       "ba_alerts": 0,
       "trust_score": 1.0,
       "composite_score": 0.5809,
-      "status": "production",
+      "status": "archived",
       "registered_at": "2026-04-24 18:19:24",
       "params": {
         "NOM_USER": "saad",
@@ -45,7 +45,7 @@
       "ba_alerts": 0,
       "trust_score": 1.0,
       "composite_score": 0.6487,
-      "status": "candidate",
+      "status": "archived",
       "registered_at": "2026-04-24 18:19:24",
       "params": {
         "NOM_USER": "saad",
@@ -326,7 +326,7 @@
       "ba_alerts": 0,
       "trust_score": 1.0,
       "composite_score": 0.7216,
-      "status": "candidate",
+      "status": "production",
       "registered_at": "2026-04-24 18:41:23",
       "params": {
         "NOM_USER": "imane",

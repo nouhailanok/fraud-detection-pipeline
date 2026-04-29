@@ -26,8 +26,7 @@ from features.vectorizer import TransactionVectorizer
 
 from collections import defaultdict
 from pydantic import BaseModel
-from torch.nn import LSTM, Linear, Dropout, Embedding,Sequential,ReLU,GRU 
-
+from torch.nn import LSTM,Linear, Dropout, Embedding,Sequential,ReLU
 
 try:
     from opacus.layers import  DPGRU , DPLSTM
@@ -43,7 +42,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 try:
-    from models.fraud_rnn import FraudRNN
+    from models.fraud_rnn2 import FraudRNN
     from models.fraud_lstm import FraudLSTM
     print("[OK] FraudRNN chargé")
 except ImportError:
@@ -51,7 +50,7 @@ except ImportError:
     print("[ERROR] Impossible d'importer FraudRNN")
 
 # ── Configuration ──
-MODEL_NAME = os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru_v1:latest")
+MODEL_NAME = os.getenv("BENTOML_MODEL_NAME", "fraud_dpgru2_v1:latest")
 SEQ_LEN = int(os.getenv("FL_SEQ_LEN", "5"))
 THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.5"))
 
@@ -63,7 +62,6 @@ THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.5"))
 torch.serialization.add_safe_globals([
     FraudLSTM,
     FraudRNN,
-    GRU,
     LSTM,
     DPGRU,
     DPLSTM,
@@ -76,9 +74,9 @@ torch.serialization.add_safe_globals([
 # ── Charger le modèle BentoML ──
 try:
     # model_ref = bentoml.models.get(MODEL_NAME)
-    model_ref = bentoml.models.get("fraud_dpgru_v1:latest")
+    model_ref = bentoml.models.get("fraud_dpgru2_v1:latest")
     # model_ref = bentoml.pytorch.get("fraud_dpgru_v1:latest")
-    with torch.serialization.safe_globals([FraudLSTM,FraudRNN,DPGRU , DPLSTM,GRU,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
+    with torch.serialization.safe_globals([FraudLSTM,FraudRNN,DPGRU,DPLSTM,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
         try:
             # PyTorch 2.6+ uses a safer default that can block custom classes.
             model = model_ref.load_model(weights_only=False)
@@ -152,59 +150,30 @@ class FraudDetectionService:
         dob: Optional[str] = None
 
 
-    # def build_sequence(self,pan_id: str, current_vector: np.ndarray) -> np.ndarray:
-    #     """
-    #     Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
-    #     Si l'historique est insuffisant, padding par répétition du vecteur courant.
-    #     """
-    #     # global user_history
-
-    #     if pan_id not in self.user_history:
-    #         self.user_history[pan_id] = []
-
-    #     history = self.user_history[pan_id]
-    #     history.append(current_vector)
-
-    #     # Garder uniquement SEQ_LEN dernières transactions
-    #     if len(history) > SEQ_LEN:
-    #         history = history[-SEQ_LEN:]
-    #         self.user_history[pan_id] = history
-
-    #     # Padding si nécessaire
-    #     seq = history.copy()
-    #     while len(seq) < SEQ_LEN:
-    #         seq.insert(0, current_vector)
-
-    #     return np.stack(seq, axis=0)  # [seq_len, n_features]
-
-    def build_sequence(self, pan_id: str, current_vector: np.ndarray) -> np.ndarray:
+    def build_sequence(self,pan_id: str, current_vector: np.ndarray) -> np.ndarray:
         """
         Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
- 
-        Logique identique à FraudSequenceDataset dans dataloader.py :
-          - Ajoute la transaction courante à l'historique de l'utilisateur
-          - Si historique < SEQ_LEN → padding par ZÉROS au début
-          - Si historique >= SEQ_LEN → fenêtre glissante sur les SEQ_LEN dernières
- 
-        Exemple avec SEQ_LEN=5 :
-          txn 1 → [0, 0, 0, 0, v1]
-          txn 2 → [0, 0, 0, v1, v2]
-          txn 5 → [v1, v2, v3, v4, v5]  ← séquence complète
-          txn 6 → [v2, v3, v4, v5, v6]  ← fenêtre glissante
+        Si l'historique est insuffisant, padding par répétition du vecteur courant.
         """
-        # Ajouter la transaction courante à l'historique
-        self.user_history[pan_id].append(current_vector.copy())
- 
-        # Garder uniquement les SEQ_LEN dernières transactions
-        history = self.user_history[pan_id][-SEQ_LEN:]
-        self.user_history[pan_id] = history
- 
-        # Padding par zéros si historique insuffisant (même logique que dataloader.py)
-        n_pad = SEQ_LEN - len(history)
-        zero_pad = [np.zeros_like(current_vector) for _ in range(n_pad)]
-        seq = zero_pad + list(history)
- 
-        return np.stack(seq, axis=0)  # (SEQ_LEN, n_features)
+        # global user_history
+
+        if pan_id not in self.user_history:
+            self.user_history[pan_id] = []
+
+        history = self.user_history[pan_id]
+        history.append(current_vector)
+
+        # Garder uniquement SEQ_LEN dernières transactions
+        if len(history) > SEQ_LEN:
+            history = history[-SEQ_LEN:]
+            self.user_history[pan_id] = history
+
+        # Padding si nécessaire
+        seq = history.copy()
+        while len(seq) < SEQ_LEN:
+            seq.insert(0, current_vector)
+
+        return np.stack(seq, axis=0)  # [seq_len, n_features]
     
     def _make_prediction(self, sequence: np.ndarray) -> tuple:
         """
@@ -234,14 +203,12 @@ class FraudDetectionService:
 
         Input JSON exemple :
         {
-            "input_data": {
-                "pan_id": "DE123_abc",
-                "amount": 250.00,
-                "merchant": "AMAZON",
-                "lat": 48.8566,
-                "long": 2.3522,
-                "trans_date_trans_time": "2019-01-01 06:48:36"
-            }
+            "pan_id": "DE123_abc",
+            "amount": 250.00,
+            "merchant": "AMAZON",
+            "lat": 48.8566,
+            "long": 2.3522,
+            "trans_date_trans_time": "2019-01-01 06:48:36"
         }
 
         Output JSON :
@@ -250,7 +217,7 @@ class FraudDetectionService:
             "probability": 0.12,
             "threshold": 0.5,
             "latency_ms": 8.4,
-            "model_version": "fraud_dpgru_v1",
+            "model_version": "fraud_dpgru2_v1",
             "sequence_length": 5
         }
         """
