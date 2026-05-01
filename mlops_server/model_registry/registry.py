@@ -16,6 +16,7 @@ import os
 import json
 import shutil
 import argparse
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -24,6 +25,69 @@ from datetime import datetime
 REGISTRY_DIR  = Path(__file__).parent
 REGISTRY_JSON = REGISTRY_DIR / "registry.json"
 BEST_MODEL_DIR= REGISTRY_DIR / "best_model"
+
+
+# ============================================================================
+# 🔧 Fonctions utilitaires SSH/SCP (module-level — pas de self)
+# ============================================================================
+
+def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _detect_remote_os(ip: str, user: str, key_path: str) -> str:
+    """Retourne 'unix' ou 'windows'."""
+    cmd = [
+        "ssh",
+        "-i", key_path,
+        "-o", "StrictHostKeyChecking=no",
+        f"{user}@{ip}",
+        "uname"
+    ]
+    result = _run(cmd)
+    return "unix" if result.returncode == 0 else "windows"
+
+
+def _format_windows_path(path: str) -> str:
+    """Convertit C:\\Users\\... en /c/Users/... pour scp. (Obsolète pour OpenSSH natif)"""
+    if ":" in path:
+        drive, rest = path.split(":", 1)
+        rest = rest.replace("\\", "/").replace(" ", "\\ ")
+        return f"/{drive.lower()}{rest}"
+    return path.replace("\\", "/")
+
+
+def _create_remote_dir(ip: str, user: str, key_path: str, dest: str, os_type: str):
+    if os_type == "unix":
+        mkdir_cmd = f"mkdir -p '{dest}'"
+    else:
+        # Ici on utilise les simples guillemets pour PowerShell
+        mkdir_cmd = (
+            "powershell -Command "
+            f"\"New-Item -ItemType Directory -Force -Path '{dest}'\""
+        )
+    cmd = [
+        "ssh",
+        "-i", key_path,
+        "-o", "StrictHostKeyChecking=no",
+        f"{user}@{ip}",
+        mkdir_cmd,
+    ]
+    _run(cmd)
+
+
+def _scp_to_client(ip: str, user: str, key_path: str, src: Path, dest: str):
+    # Plus besoin de rajouter des guillemets \" autour de dest !
+    # Python transmet l'argument de manière sécurisée à SCP.
+    cmd = [
+        "scp",
+        "-i", key_path,
+        "-o", "StrictHostKeyChecking=no",
+        "-r",
+        str(src),
+        f"{user}@{ip}:{dest}",
+    ]
+    return _run(cmd)
 
 
 # ============================================================================
@@ -481,7 +545,57 @@ class ModelRegistry:
         print(f"\n  ✅ '{run_id}' promu en production")
         print(f"     Checkpoint → {dest_model}")
         print(f"     Metadata   → {dest_meta}\n")
+
+        # 4. Copie automatique vers les clients
+        self._deploy_to_clients(BEST_MODEL_DIR)
+
         return True
+
+    def _deploy_to_clients(self, best_model_dir: Path) -> None:
+        print("🚀 Deploy du meilleur modèle vers les clients...\n")
+
+        # key_path = "/home/ubuntu/.ssh/fl_server_key"
+        key_path = str(Path.home() / ".ssh" / "fl_server_key")
+
+        clients_config = {
+            "100.95.110.63": {
+                "username": "SAAD",
+                "dest_parent": "C:/Users/SAAD/OneDrive/Desktop/CSCC_S4/Projet metier/fraud-detection-pipeline/mlops/model_registry",
+            },
+            "100.127.240.19": {
+                "username": "mohamed",
+                "dest_parent": "C:/Users/medam/OneDrive/Documents/Projects/fraud-detection-pipeline/mlops/model_registry",
+            },
+            # "100.71.252.79": {
+            #     "username": "nouhaila",
+            #     "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
+            # },
+            # "100.87.187.93": {
+            #     "username": "imane",
+            #     "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
+            # },
+        }
+
+        for ip, cfg in clients_config.items():
+            user = cfg["username"]
+            dest_parent = cfg["dest_parent"]
+
+            print(f"➡️  Client {ip} ({user})")
+
+            os_type = _detect_remote_os(ip, user, key_path)
+            print(f"   OS détecté: {os_type}")
+
+            # ❌ La conversion du chemin Windows est supprimée car
+            # OpenSSH sous Windows natif gère très bien C:/...
+
+            _create_remote_dir(ip, user, key_path, dest_parent, os_type)
+
+            result = _scp_to_client(ip, user, key_path, best_model_dir, dest_parent)
+
+            if result.returncode == 0:
+                print("   ✅ Copie réussie\n")
+            else:
+                print(f"   ❌ Erreur SCP:\n{result.stderr}\n")
 
     # ── Status ────────────────────────────────────────────────────────────────
 
