@@ -173,6 +173,22 @@ def main():
             "param_12": "classifier.0.weight",
             "param_13": "classifier.0.bias",
             "param_14": "classifier.3.weight",
+            "param_15": "classifier.3.bias",
+            "param_0" : "gru.l0.ih.weight",
+            "param_1" : "gru.l0.ih.bias",
+            "param_2" : "gru.l0.hh.weight",
+            "param_3" : "gru.l0.hh.bias",
+            "param_4" : "gru.l1.ih.weight",
+            "param_5" : "gru.l1.ih.bias",
+            "param_6" : "gru.l1.hh.weight",
+            "param_7" : "gru.l1.hh.bias",
+            "param_8" : "gru.l2.ih.weight",
+            "param_9" : "gru.l2.ih.bias",
+            "param_10" : "gru.l2.hh.weight",
+            "param_11" : "gru.l2.hh.bias",
+            "param_12": "classifier.0.weight",
+            "param_13": "classifier.0.bias",
+            "param_14": "classifier.3.weight",
             "param_15": "classifier.3.bias"
         }
         data = dict(np.load(path, allow_pickle=True))

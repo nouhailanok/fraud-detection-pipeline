@@ -26,8 +26,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
 # ── Config ───────────────────────────────────────────────────────────────────
-CSV_PATH   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/node_1/local_data.csv")
-SAVE_DIR   = Path("data/node_1/tensors")
+CSV_PATH   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/FraudTest_sorted.csv")
+SAVE_DIR   = Path("data/tensors_FraudTest")
 BATCH_SIZE = 1000
 NUM_CORES  = max(1, mp.cpu_count() - 2)  # Laisse 1 core libre pour l'OS
 

@@ -26,8 +26,10 @@ from features.enricher import TransactionEnricher
 from features.vectorizer import TransactionVectorizer
 
 # ── Config ───────────────────────────────────────────────────────────────────
-CSV_PATH   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/node_1/local_data.csv")
-SAVE_DIR   = Path("data/node_1/tensors")
+# CSV_PATH   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/node_1/local_data.csv")
+CSV_PATH   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/FraudTest_sorted.csv")
+
+SAVE_DIR   = Path("data/tensors_FraudTest")
 BATCH_SIZE = 1000
 
 # ── Initialisation ───────────────────────────────────────────────────────────
