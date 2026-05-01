@@ -19,8 +19,9 @@ $env:FLOWER_TLS_CLIENT_CERT = "../certs_prod/bank$CLIENT_ID.crt"
 $env:FLOWER_TLS_CLIENT_KEY = "../certs_prod/bank$CLIENT_ID.key"
 
 # --- EXÉCUTION ---
-$DIR = "C:\Users\SAAD\OneDrive\Desktop\CSCC_S4\Projet metier\fraud-detection-pipeline"
-$PY = "$DIR\venv\Scripts\python.exe"
+$DIR = "C:\Users\medam\OneDrive\Documents\Projects\fraud-detection-pipeline"
+$PY = "C:\Users\medam\AppData\Local\Programs\Python\Python312\python.exe"
+$env:PYTHONPATH = $DIR
 
-Write-Host "🔐 Connexion sécurisée mTLS vers $SERVER_IP..." -ForegroundColor Cyan
+Write-Host "Connexion securisee mTLS vers $SERVER_IP..." -ForegroundColor Cyan
 & $PY federated/client.py

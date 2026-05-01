@@ -79,6 +79,8 @@ TRAIN_RATIO   = float(os.getenv("FL_TRAIN_RATIO","0.8"))
 
 # CHANGEMENT 3 : pos_weight aligné avec train_local.py
 POS_WEIGHT    = float(os.getenv("FL_POS_WEIGHT", "167.0"))    # ← manquait
+MU = float(os.getenv("FEDPROX_MU", "0.01"))  # 0 = FedAvg standard
+
 
 
 # ============================================================================
@@ -148,6 +150,9 @@ class FlowerClient(fl.client.NumPyClient):
     def fit(self, parameters, config):
         self.set_parameters(parameters)
 
+        # Mémoriser les poids globaux pour FedProx
+        global_params = [p.detach().clone() for p in self.model.parameters()]
+
         # ── Vérification budget DP AVANT le round ────────────────────────────
         # Si le budget est déjà épuisé depuis le round précédent,
         # on renvoie les paramètres reçus sans entraîner
@@ -179,6 +184,13 @@ class FlowerClient(fl.client.NumPyClient):
 
                 logits      = self.model(x).float()
                 loss        = self.criterion(logits, y.float())
+                loss = self.criterion(logits, y.float())
+                if MU > 0:
+                    prox_term = sum(
+                        (p - g).norm(2) ** 2
+                        for p, g in zip(self.model.parameters(), global_params)
+                    )
+                    loss = loss + (MU / 2) * prox_term
 
                 loss.backward()
 
