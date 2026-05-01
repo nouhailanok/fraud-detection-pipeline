@@ -442,7 +442,7 @@ class FedAvgWithLogging(fl.server.strategy.FedAvg):
         self._prev_agg_params = None  # poids globaux N-1 pour calcul ∆W
         self._blacklisted     : set  = set()  # nœuds blacklistés définitivement
 
-        if BA_AVAILABLE:
+        if BA_AVAILABLE and os.getenv("BA_ENABLED", "true").lower() == "true":
             self.analyzer = BehavioralAnalyzer(
                 n_clients        = min_clients,
                 activation_round = BA_ACTIVATION_ROUND,

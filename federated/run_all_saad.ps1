@@ -46,6 +46,7 @@ switch ($Role) {
         $env:FLOWER_PORT = "8080" # Kept at 8080 to match the clients
         $env:FLOWER_TLS_REQUIRE_CLIENT_CERT = "false"
         $env:FL_PATIENCE = "5"
+        $env:BA_ENABLED = "false"
 
         # ── OPTIONNEL : reprise depuis checkpoint (dir ou .npz) ──
         $env:FL_RESUME_FROM = "" 
