@@ -70,8 +70,9 @@ class BehavioralAnalyzer:
         if not node_features:
             return self._empty_report(server_round, "no_results")
 
-        for client_id, feats in node_features.items():
-            self._history.append({"round": server_round, "client_id": client_id, **feats})
+        node_features_norm = self._zscore_features(node_features)
+        # for client_id, feats in node_features_norm.items():
+        #     self._history.append({"round": server_round, "client_id": client_id, **feats})
 
         report = {
             "round"     : server_round,
@@ -102,6 +103,15 @@ class BehavioralAnalyzer:
 
             report["attack_types"] = attack_types
             report["decisions"]    = decisions
+
+            for cid, feats in node_features_norm.items():
+                if attack_types.get(cid, "NORMAL") == "NORMAL":
+                    self._history.append({
+                        "round": server_round, "client_id": cid, **feats
+                    })
+            max_history = self.n_clients * 20
+            if len(self._history) > max_history:
+                self._history = self._history[-max_history:]
 
             if suspects:
                 print(f"\n  🚨 BEHAVIORAL ALERT — Round {server_round}")
@@ -177,7 +187,8 @@ class BehavioralAnalyzer:
             deltas  = list(delta_weights.values())
             min_len = min(len(d) for d in deltas)
             deltas  = [d[:min_len] for d in deltas]
-            mean_d  = np.mean(deltas, axis=0)
+            # mean_d  = np.mean(deltas, axis=0)
+            mean_d  = np.median(deltas, axis=0)
             for i, cid in enumerate(ids):
                 d    = deltas[i]
                 norm = np.linalg.norm(d) * np.linalg.norm(mean_d)
@@ -194,18 +205,19 @@ class BehavioralAnalyzer:
         X_history = np.nan_to_num(X_history, nan=0.0, posinf=1e6, neginf=-1e6)
 
         iso = IsolationForest(n_estimators=self.n_estimators,
-                              contamination=self.contamination, random_state=42)
+                            contamination="auto", random_state=42)
         iso.fit(X_history)
 
         ids     = list(node_features.keys())
         X_round = np.array(
             [[node_features[cid].get(k, 0.0) for k in KEYS] for cid in ids], dtype=np.float32
         )
-        X_round     = np.nan_to_num(X_round, nan=0.0, posinf=1e6, neginf=-1e6)
-        predictions = iso.predict(X_round)
-        scores      = iso.score_samples(X_round)
+        X_round = np.nan_to_num(X_round, nan=0.0, posinf=1e6, neginf=-1e6)
+        scores  = iso.score_samples(X_round)
 
-        return ([ids[i] for i, p in enumerate(predictions) if p == -1],
+        # Seuil absolu — évite les faux positifs garantis par contamination fixe
+        IF_THRESHOLD = -0.55
+        return ([ids[i] for i, s in enumerate(scores) if s < IF_THRESHOLD],
                 {ids[i]: float(scores[i]) for i in range(len(ids))})
 
     def _empty_report(self, server_round, reason=""):
@@ -221,6 +233,30 @@ class BehavioralAnalyzer:
         except Exception as e:
             print(f"  ⚠️  BA save error : {e}")
 
+    def _zscore_features(self, node_features: Dict) -> Dict:
+        """
+        Normalise les features numériques par Z-score intra-round.
+        Évite que la convergence naturelle (norm_L2 décroît) soit détectée
+        comme anomalie par rapport aux rounds précédents.
+        """
+        if len(node_features) < 2:
+            return node_features
+
+        KEYS = ["norm_L2", "norm_L1", "var_delta", "train_loss"]
+        values = {k: np.array([f.get(k, 0.0) for f in node_features.values()])
+                for k in KEYS}
+
+        normalized = {}
+        for cid, feats in node_features.items():
+            norm_feats = dict(feats)
+            for k in KEYS:
+                vals  = values[k]
+                mu    = vals.mean()
+                sigma = vals.std()
+                norm_feats[k] = float((feats.get(k, 0.0) - mu) / (sigma + 1e-8))
+            normalized[cid] = norm_feats
+        return normalized
+    
     def _get_mean_norm(self) -> float:
         norms = [p.get("norm_L2", 0.0) for p in self._history[-20:]]
         return float(np.mean(norms)) if norms else 1.0
