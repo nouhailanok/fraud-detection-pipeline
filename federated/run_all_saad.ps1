@@ -36,13 +36,13 @@ $env:PYTHONPATH = $DIR
 switch ($Role) {
     "Server" {
         # ── Identité du run (sera incluse dans le nom du dossier) ──
-        $env:NOM_USER = "saad"
+        $env:NOM_USER = "saad_fedProx"
 
         # ── Paramètres serveur / training ──
         $env:PYTHONPATH = $DIR
-        $env:FL_ROUNDS = "20"
+        $env:FL_ROUNDS = "15"
         $env:FL_MIN_CLIENTS = "4"
-        $env:FL_LOCAL_EPOCHS = "5"
+        $env:FL_LOCAL_EPOCHS = "7"
         $env:FLOWER_PORT = "8080" # Kept at 8080 to match the clients
         $env:FLOWER_TLS_REQUIRE_CLIENT_CERT = "false"
         $env:FL_PATIENCE = "5"
