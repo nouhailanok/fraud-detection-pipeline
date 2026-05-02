@@ -109,6 +109,7 @@ class BehavioralAnalyzer:
                     self._history.append({
                         "round": server_round, "client_id": cid, **feats
                     })
+            # print(f"  🔬 Behavioral — {reason}")
             max_history = self.n_clients * 20
             if len(self._history) > max_history:
                 self._history = self._history[-max_history:]
@@ -133,6 +134,10 @@ class BehavioralAnalyzer:
             report["reason"]       = reason
             report["attack_types"] = {}
             report["decisions"]    = {}
+            for cid, feats in node_features_norm.items():
+                self._history.append({
+                    "round": server_round, "client_id": cid, **feats
+                })
             print(f"  🔬 Behavioral — {reason}")
 
         self._reports.append(report)
