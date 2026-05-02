@@ -346,3 +346,4 @@ class BehavioralAnalyzer:
             return "ALERT"
 
         return "NORMAL"
+    

@@ -1,0 +1,29 @@
+{
+  "run_id": "2026-04-23_01-00-54_imane",
+  "promoted_at": "2026-05-02 15:12:22",
+  "f1": 0.7029,
+  "recall": 0.6252,
+  "precision": 0.8035,
+  "epsilon_final": 0.9542,
+  "trust_score": 1.0,
+  "composite_score": 0.5888,
+  "ba_alerts": 0,
+  "best_round": 30,
+  "checkpoint_origin": "logs\\runs\\2026-04-23_01-00-54_imane\\checkpoints\\global_model_last.npz",
+  "params": {
+    "NOM_USER": "imane",
+    "FL_USER": "",
+    "FL_ROUNDS": "30",
+    "FL_MIN_CLIENTS": "4",
+    "FL_LOCAL_EPOCHS": "3",
+    "FLOWER_PORT": "8080",
+    "FLOWER_TLS_REQUIRE_CLIENT_CERT": "false",
+    "FL_PATIENCE": "5",
+    "FL_RESUME": "false",
+    "FL_RESUME_FROM": "",
+    "FL_CHECKPOINT_PATH": "",
+    "FL_LOGS_DIR": "logs\\runs\\2026-04-23_01-00-54_imane",
+    "FL_CHECKPOINT_DIR": "logs\\runs\\2026-04-23_01-00-54_imane\\checkpoints",
+    "PYTHONPATH": "C:\\Users\\Imane\\OneDrive\\Bureau\\IAGI-S4\\Projet_Metier\\fraud-detection-pipeline-main Version Pc ENSAM\\fraud-detection-pipeline-main (1)\\fraud-detection-pipeline-main"
+  }
+}

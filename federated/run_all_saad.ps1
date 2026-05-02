@@ -3,8 +3,8 @@ param (
 )
 
 # Common Directory and Python Paths
-$DIR = "C:\Users\SAAD\OneDrive\Desktop\CSCC_S4\Projet metier\fraud-detection-pipeline"
-$PY  = "$DIR\venv\Scripts\python.exe"
+$DIR = "C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline-main Version Pc ENSAM\fraud-detection-pipeline-main (1)\fraud-detection-pipeline-main"
+$PY = "C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline\venv\Scripts\python.exe"
 
 # ---------------------------------------------------------
 # 1. THE LAUNCHER: Opens Windows Terminal with 5 tabs
@@ -36,13 +36,13 @@ $env:PYTHONPATH = $DIR
 switch ($Role) {
     "Server" {
         # ── Identité du run (sera incluse dans le nom du dossier) ──
-        $env:NOM_USER = "saad_fedProx"
+        $env:NOM_USER = "imane"
 
         # ── Paramètres serveur / training ──
         $env:PYTHONPATH = $DIR
-        $env:FL_ROUNDS = "15"
+        $env:FL_ROUNDS = "35"
         $env:FL_MIN_CLIENTS = "4"
-        $env:FL_LOCAL_EPOCHS = "7"
+        $env:FL_LOCAL_EPOCHS = "3"
         $env:FLOWER_PORT = "8080" # Kept at 8080 to match the clients
         $env:FLOWER_TLS_REQUIRE_CLIENT_CERT = "false"
         $env:FL_PATIENCE = "5"
@@ -104,7 +104,7 @@ switch ($Role) {
         $env:FL_CLIENT_CONTINUOUS = "true"
         $env:DP_NOISE = "1.20"
         $env:FL_LR = "0.0005"
-        $env:FL_BATCH_SIZE = "256"
+        $env:FL_BATCH_SIZE = "128"
         $env:FL_POS_WEIGHT = "167.0"
         
         Write-Output "=== BANQUE 1 Python 3.11.9 RTX 4060 ==="
@@ -122,7 +122,7 @@ switch ($Role) {
         $env:FL_CLIENT_CONTINUOUS = "true"
         $env:DP_NOISE = "1.20"
         $env:FL_LR = "0.0005"
-        $env:FL_BATCH_SIZE = "256"
+        $env:FL_BATCH_SIZE = "128"
         $env:FL_POS_WEIGHT = "163.0"
         
         Write-Output "=== BANQUE 2 Python 3.11.9 RTX 4060 ==="
@@ -140,7 +140,7 @@ switch ($Role) {
         $env:FL_CLIENT_CONTINUOUS = "true"
         $env:DP_NOISE = "1.20"
         $env:FL_LR = "0.0005"
-        $env:FL_BATCH_SIZE = "256"
+        $env:FL_BATCH_SIZE = "128"
         $env:FL_POS_WEIGHT = "193.8"
         
         Write-Output "=== BANQUE 3 Python 3.11.9 RTX 4060 ==="
@@ -158,7 +158,7 @@ switch ($Role) {
         $env:FL_CLIENT_CONTINUOUS = "true"
         $env:DP_NOISE = "1.20"
         $env:FL_LR = "0.0005"
-        $env:FL_BATCH_SIZE = "256"
+        $env:FL_BATCH_SIZE = "128"
         $env:FL_POS_WEIGHT = "165.8"
         
         Write-Output "=== BANQUE 4 Python 3.11.9 RTX 4060 ==="

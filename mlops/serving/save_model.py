@@ -143,7 +143,7 @@ def main():
 
     # ── Reconstruire le modèle ──
     print("\n[INFO] Reconstruction du modèle DPGRU...")
-    model = build_model()
+    model = build_model(use_dpgru=False)  # On utilise la même architecture que pour l'entraînement centralisé
     print(f"[INFO] Architecture : {type(model).__name__}")
     model.eval()
 
@@ -200,8 +200,26 @@ def main():
             print(f"[MAP] {ckpt_key} → {model_key} | shape={tensor.shape}")
 
             state_dict[model_key] = tensor
-    else : 
-        print(f"[ERROR] Format de checkpoint non supporté pour l'instant : {path.suffix}")
+
+    elif path.suffix in (".pt", ".pth"):
+        print(f"[INFO] Checkpoint .pt détecté — GRU standard (centralisé)...")
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+
+        # train_central.py sauvegarde sous la clé "model_state"
+        if isinstance(ckpt, dict) and "model_state" in ckpt:
+            state_dict = ckpt["model_state"]
+            epoch = ckpt.get("epoch", "?")
+            val_f1 = ckpt.get("val_f1", 0.0)
+            print(f"[INFO] Epoch={epoch} | val_F1={val_f1:.4f}")
+        elif isinstance(ckpt, dict) and "state_dict" in ckpt:
+            state_dict = ckpt["state_dict"]
+        else:
+            state_dict = ckpt  # state_dict direct
+
+        print("🔍 Keys du state_dict :")
+        print(list(state_dict.keys())[:6])
+    else:
+        print(f"[ERROR] Format de checkpoint non supporté : {path.suffix}")
 
     print("🔍 Keys du state_dict :")
     print(list(state_dict.keys())[:10])  

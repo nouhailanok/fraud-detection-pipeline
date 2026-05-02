@@ -82,8 +82,6 @@ def map_to_iso(row):
         "DE007_DateTime": format_datetime(row["trans_date_trans_time"]),
         "DE011_STAN": generate_stan(),
         "DE018_MCC": row["category"],
-        # "DE037_RRN": generate_de037(),
-        # "DE037_RRN": generate_unique_DE37(row["trans_num"]),
         "DE037_RRN": get_de37_stream(row["trans_num"]),
         "DE043_MerchantLoc": f"{row['merchant']} {row['city']} {row['state']}",
         "DE049_Currency": "840",

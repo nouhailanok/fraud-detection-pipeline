@@ -566,14 +566,14 @@ class ModelRegistry:
                 "username": "mohamed",
                 "dest_parent": "C:/Users/medam/OneDrive/Documents/Projects/fraud-detection-pipeline/mlops/model_registry",
             },
-            # "100.71.252.79": {
-            #     "username": "nouhaila",
-            #     "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
-            # },
-            # "100.87.187.93": {
-            #     "username": "imane",
-            #     "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
-            # },
+            "100.71.252.79": {
+                "username": "nouhaila",
+                "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
+            },
+            "100.87.187.93": {
+                "username": "imane",
+                "dest_parent": "~/fraud-detection-pipeline/mlops_server/model_registry",
+            },
         }
 
         for ip, cfg in clients_config.items():

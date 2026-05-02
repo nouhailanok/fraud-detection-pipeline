@@ -65,6 +65,7 @@ TRAIN_CSV  = Path(os.getenv(
     str(DATA_ROOT / f"node_{NODE_ID}" / "local_data.csv")
 ))
 
+SCALER_PATH = "data/central/scaler_central.pkl"
 
 # -------------------------
 # Chargement modèle (UNE SEULE FOIS)
@@ -87,9 +88,8 @@ torch.serialization.add_safe_globals([
 # ── Charger le modèle BentoML ──
 try:
     # model_ref = bentoml.models.get(MODEL_NAME)
-    # model_ref = bentoml.models.get("fraud_dpgru_v1:latest")
-    model_ref = bentoml.models.get("fraud_dpgru_v1:2026-04-23_17-13-33_imane_time_1777421306")
     # model_ref = bentoml.pytorch.get("fraud_dpgru_v1:latest")
+    model_ref = bentoml.models.get("fraud_dpgru_v1:latest")
     with torch.serialization.safe_globals([FraudLSTM,FraudRNN,DPGRU , DPLSTM,GRU,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
         try:
             # PyTorch 2.6+ uses a safer default that can block custom classes.
@@ -147,6 +147,18 @@ class FraudDetectionService:
             "model_version": MODEL_NAME,
         }
 
+        # ── Charger le scaler ─────────────────────────────────────────
+        self.scaler = None
+        try:
+            import joblib
+            if SCALER_PATH.exists():
+                self.scaler = joblib.load(SCALER_PATH)
+                print(f"  ✅ Scaler chargé : {SCALER_PATH}")
+            else:
+                print(f"  ⚠️  Scaler introuvable : {SCALER_PATH}")
+        except Exception as e:
+            print(f"  ⚠️  Erreur scaler : {e}")
+
         # Pré-charger l'historique depuis local_data.csv du node
         print(f"\n  🏦 Service BentoML — Node {NODE_ID}")
         print(f"  📂 Fichier train : {TRAIN_CSV}")
@@ -174,34 +186,7 @@ class FraudDetectionService:
         mcc: str = "5999"
         dob: Optional[str] = None
 
-
-    # def build_sequence(self,pan_id: str, current_vector: np.ndarray) -> np.ndarray:
-    #     """
-    #     Construit une séquence de SEQ_LEN transactions pour l'utilisateur.
-    #     Si l'historique est insuffisant, padding par répétition du vecteur courant.
-    #     """
-    #     # global user_history
-
-    #     if pan_id not in self.user_history:
-    #         self.user_history[pan_id] = []
-
-    #     history = self.user_history[pan_id]
-    #     history.append(current_vector)
-
-    #     # Garder uniquement SEQ_LEN dernières transactions
-    #     if len(history) > SEQ_LEN:
-    #         history = history[-SEQ_LEN:]
-    #         self.user_history[pan_id] = history
-
-    #     # Padding si nécessaire
-    #     seq = history.copy()
-    #     while len(seq) < SEQ_LEN:
-    #         seq.insert(0, current_vector)
-
-    #     return np.stack(seq, axis=0)  # [seq_len, n_features]
-
-
-        # ─────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────
     # HISTORIQUE — chargement depuis local_data.csv
     # ─────────────────────────────────────────────────────────────────────
 
@@ -426,21 +411,7 @@ class FraudDetectionService:
             return dt.strftime("%m%d%H%M%S")
         
         t0 = time.perf_counter()
-        try:
-            # ── 1. Préparation du dictionnaire pour l'enrichisseur ──
-            # ml_input = {
-            #     "DE002_PAN_HASH": str(input_data.get("pan_id", "")),
-            #     "DE004_Amount": f"{float(input_data.get('amount', 0)):012.0f}",
-            #     "DE007_DateTime": str(input_data.get("unix_time", "")),
-            #     "DE018_MCC": str(input_data.get("mcc", "5999")),
-            #     "Client_Lat": float(input_data.get("lat", 0.0)),
-            #     "Client_Long": float(input_data.get("long", 0.0)),
-            #     "Merch_Lat": float(input_data.get("merch_lat", input_data.get("lat", 0.0))),
-            #     "Merch_Long": float(input_data.get("merch_long", input_data.get("long", 0.0))),
-            #     "Merchant_Name": str(input_data.get("merchant", "UNKNOWN")),
-            #     "DOB": str(input_data.get("dob", "1990-01-01")),
-            # }
-            
+        try:            
             # ─────────────────────────────────────────
             # 1. SAFE INPUT CLEANING
             # ─────────────────────────────────────────
@@ -489,8 +460,6 @@ class FraudDetectionService:
             X, _ = vectorizer.vectorize(enriched_json)
 
             # ── 4. Construction de la séquence utilisateur ──
-            # pan_id = input_data.pan_id
-            # pan_id = str(input_data.get("pan_id", "unknown"))
             sequence = self.build_sequence(pan_id, X)
 
             # ── 5. Prédiction ──

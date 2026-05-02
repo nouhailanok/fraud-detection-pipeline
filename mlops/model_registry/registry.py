@@ -167,8 +167,8 @@ class ModelRegistry:
             ckpt_dir  = run_dir / "checkpoints"
             ckpt_path = None
             if ckpt_dir.exists():
-                # Préférer global_model_last.npz
-                last = ckpt_dir / "global_model_last.npz"
+                # Préférer global_model_best.npz
+                last = ckpt_dir / "global_model_best.npz"
                 if last.exists():
                     ckpt_path = last
                 else:
