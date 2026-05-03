@@ -1,0 +1,11 @@
+﻿NOM_USER=imane_FedProx_0.01
+FL_ROUNDS=15
+FL_MIN_CLIENTS=4
+FL_LOCAL_EPOCHS=7
+FLOWER_PORT=8080
+FLOWER_TLS_REQUIRE_CLIENT_CERT=false
+FL_PATIENCE=5
+FL_RESUME=true
+FL_RESUME_FROM=C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline\logs\runs\2026-05-02_18-28-40_imane_FedProx_0.01\checkpoints
+FL_LOGS_DIR=logs\runs\2026-05-03_12-01-29_imane_FedProx_0.01
+FL_CHECKPOINT_DIR=logs\runs\2026-05-03_12-01-29_imane_FedProx_0.01\checkpoints

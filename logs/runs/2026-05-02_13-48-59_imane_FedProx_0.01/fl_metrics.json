@@ -1,0 +1,21 @@
+[
+  {
+    "round": 1,
+    "timestamp": "2026-05-02 14:24:28",
+    "accuracy": 0.9956,
+    "loss": 4.6377,
+    "recall": 0.0,
+    "precision": 0.0,
+    "f1": 0.0,
+    "n_clients_eval": 4,
+    "n_examples_eval": 373770,
+    "train_loss": 8.0888,
+    "n_clients_fit": 4,
+    "avg_epsilon": 0.3193,
+    "max_epsilon": 0.3615,
+    "epsilon_status": "OK",
+    "ba_suspects": "",
+    "ba_active": false,
+    "elapsed_sec": 2079.4
+  }
+]
