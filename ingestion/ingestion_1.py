@@ -80,12 +80,6 @@ def consume_and_process():
                 consumer = KafkaConsumer(
                     TOPIC_NAME,
                     bootstrap_servers=BOOTSTRAP_SERVERS,
-                    # # Added for fast npy
-                    # fetch_min_bytes=1048576,      # 1 Mo minimum avant de répondre
-                    # fetch_max_wait_ms=500,        # Attendre max 0.5s pour remplir le Mo
-                    # max_partition_fetch_bytes=5242880, # 5 Mo max par partition
-                    # max_poll_records=2000,        # Récupérer 2000 messages par "poll"
-                    # # Added for fast npy
                     security_protocol=KAFKA_SECURITY_PROTOCOL,
                     ssl_cafile=CA_CERT if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
                     ssl_certfile=CLIENT_CERT if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
@@ -94,7 +88,6 @@ def consume_and_process():
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     group_id=CONSUMER_GROUP,
                     auto_offset_reset='earliest',
-                    # auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
                     enable_auto_commit=True,
                     max_poll_records=500,
                     session_timeout_ms=30000

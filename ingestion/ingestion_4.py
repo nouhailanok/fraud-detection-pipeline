@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 from kafka import KafkaConsumer
@@ -44,14 +45,16 @@ class ISOTransaction(BaseModel):
     DE123_CustomData: CustomDataSchema  # Validation imbriquée
 
 TOPIC_NAME = 'topic_raw_transactions_4'
-BOOTSTRAP_SERVERS_SSL = ['kafka:9093']  # ⚠️ Port SSL pour mTLS
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "127.0.0.1:9093")
+BOOTSTRAP_SERVERS = [KAFKA_BROKER]
+KAFKA_SECURITY_PROTOCOL = os.getenv("KAFKA_SECURITY_PROTOCOL", "SSL").upper()
 CONSUMER_GROUP = 'fraud-detection-group'
 
 # Chemins vers les certificats mTLS
 BASE_CERT_PATH = Path(__file__).parent.parent / "security" / "certs"
-CA_CERT = str(BASE_CERT_PATH / "ca.crt")
-CLIENT_CERT = str(BASE_CERT_PATH / "client.crt")
-CLIENT_KEY = str(BASE_CERT_PATH / "client.key")
+CA_CERT = os.getenv("KAFKA_CA_CERT", str(BASE_CERT_PATH / "ca.crt"))
+CLIENT_CERT = os.getenv("KAFKA_CLIENT_CERT", str(BASE_CERT_PATH / "ing_4.crt"))
+CLIENT_KEY = os.getenv("KAFKA_CLIENT_KEY", str(BASE_CERT_PATH / "ing_4.key"))
 
 
 def consume_and_process():
@@ -68,8 +71,7 @@ def consume_and_process():
     vectorizer = TransactionVectorizer()
     X_batch = []
     y_batch = []
-    # BATCH_SIZE = 1000
-    BATCH_SIZE = 1000
+    BATCH_SIZE = int(os.getenv("INGESTION_BATCH_SIZE", "1000"))
     # --------------------------------------
 
     try:
@@ -77,22 +79,15 @@ def consume_and_process():
             try:
                 consumer = KafkaConsumer(
                     TOPIC_NAME,
-                    bootstrap_servers=BOOTSTRAP_SERVERS_SSL,
-                    # # Added for fast npy
-                    # fetch_min_bytes=1048576,      # 1 Mo minimum avant de répondre
-                    # fetch_max_wait_ms=500,        # Attendre max 0.5s pour remplir le Mo
-                    # max_partition_fetch_bytes=5242880, # 5 Mo max par partition
-                    # max_poll_records=2000,        # Récupérer 2000 messages par "poll"
-                    # # Added for fast npy
-                    security_protocol='SSL',
-                    ssl_cafile=CA_CERT,
-                    ssl_certfile=CLIENT_CERT,
-                    ssl_keyfile=CLIENT_KEY,
-                    ssl_check_hostname=False,
+                    bootstrap_servers=BOOTSTRAP_SERVERS,
+                    security_protocol=KAFKA_SECURITY_PROTOCOL,
+                    ssl_cafile=CA_CERT if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
+                    ssl_certfile=CLIENT_CERT if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
+                    ssl_keyfile=CLIENT_KEY if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
+                    ssl_check_hostname=False if KAFKA_SECURITY_PROTOCOL == 'SSL' else None,
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     group_id=CONSUMER_GROUP,
                     auto_offset_reset='earliest',
-                    # auto_offset_reset='latest',  # Commence à consommer à partir des nouveaux messages
                     enable_auto_commit=True,
                     max_poll_records=500,
                     session_timeout_ms=30000
@@ -107,9 +102,12 @@ def consume_and_process():
         if consumer is None:
             raise RuntimeError("Impossible de se connecter à Kafka après plusieurs tentatives")
         
-        audit_logger.info(f"✅ Consumer connecté au topic '{TOPIC_NAME}' avec mTLS (port 9093)")
-        print(f"[INGESTION] Connecté via mTLS au topic '{TOPIC_NAME}'...")
-        print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
+        audit_logger.info(
+            f"✅ Consumer connecté au topic '{TOPIC_NAME}' via {KAFKA_SECURITY_PROTOCOL} sur {KAFKA_BROKER}"
+        )
+        print(f"[INGESTION] Connecté au topic '{TOPIC_NAME}' via {KAFKA_SECURITY_PROTOCOL} sur {KAFKA_BROKER}...")
+        if KAFKA_SECURITY_PROTOCOL == 'SSL':
+            print(f"[SÉCURITÉ] Certificats : CA={CA_CERT}, Client={CLIENT_CERT}")
         
         # Boucle de consommation
         for message in consumer:

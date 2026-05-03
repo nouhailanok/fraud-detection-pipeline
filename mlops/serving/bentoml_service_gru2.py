@@ -75,7 +75,6 @@ torch.serialization.add_safe_globals([
 try:
     # model_ref = bentoml.models.get(MODEL_NAME)
     model_ref = bentoml.models.get("fraud_dpgru2_v1:latest")
-    # model_ref = bentoml.pytorch.get("fraud_dpgru_v1:latest")
     with torch.serialization.safe_globals([FraudLSTM,FraudRNN,DPGRU,DPLSTM,LSTM,Linear,Dropout,Embedding,Sequential,ReLU]):
         try:
             # PyTorch 2.6+ uses a safer default that can block custom classes.
@@ -227,19 +226,6 @@ class FraudDetectionService:
         
         t0 = time.perf_counter()
         try:
-            # ── 1. Préparation du dictionnaire pour l'enrichisseur ──
-            # ml_input = {
-            #     "DE002_PAN_HASH": str(input_data.get("pan_id", "")),
-            #     "DE004_Amount": f"{float(input_data.get('amount', 0)):012.0f}",
-            #     "DE007_DateTime": str(input_data.get("unix_time", "")),
-            #     "DE018_MCC": str(input_data.get("mcc", "5999")),
-            #     "Client_Lat": float(input_data.get("lat", 0.0)),
-            #     "Client_Long": float(input_data.get("long", 0.0)),
-            #     "Merch_Lat": float(input_data.get("merch_lat", input_data.get("lat", 0.0))),
-            #     "Merch_Long": float(input_data.get("merch_long", input_data.get("long", 0.0))),
-            #     "Merchant_Name": str(input_data.get("merchant", "UNKNOWN")),
-            #     "DOB": str(input_data.get("dob", "1990-01-01")),
-            # }
             
             # ─────────────────────────────────────────
             # 1. SAFE INPUT CLEANING
@@ -289,8 +275,6 @@ class FraudDetectionService:
             X, _ = vectorizer.vectorize(enriched_json)
 
             # ── 4. Construction de la séquence utilisateur ──
-            # pan_id = input_data.pan_id
-            # pan_id = str(input_data.get("pan_id", "unknown"))
             sequence = self.build_sequence(pan_id, X)
 
             # ── 5. Prédiction ──
