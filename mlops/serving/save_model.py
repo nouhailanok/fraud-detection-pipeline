@@ -143,7 +143,8 @@ def main():
 
     # ── Reconstruire le modèle ──
     print("\n[INFO] Reconstruction du modèle DPGRU...")
-    model = build_model(use_dpgru=False)  # On utilise la même architecture que pour l'entraînement centralisé
+    model = build_model(use_dpgru=True)  
+    # model = build_model(use_dpgru=False)  # On utilise la même architecture que pour l'entraînement centralisé
     print(f"[INFO] Architecture : {type(model).__name__}")
     model.eval()
 
