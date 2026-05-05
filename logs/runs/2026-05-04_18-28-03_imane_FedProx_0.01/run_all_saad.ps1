@@ -49,7 +49,7 @@ switch ($Role) {
         $env:BA_ENABLED = "false"
 
         # ── OPTIONNEL : reprise depuis checkpoint (dir ou .npz) ──
-        $env:FL_RESUME_FROM = "C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline\logs\runs\2026-05-04_18-28-03_imane_FedProx_0.01\checkpoints" 
+        $env:FL_RESUME_FROM = "C:\Users\Imane\OneDrive\Bureau\IAGI-S4\Projet_Metier\fraud-detection-pipeline\logs\runs\2026-05-03_12-01-29_imane_FedProx_0.01\checkpoints" 
         
         if ($env:FL_RESUME_FROM -and $env:FL_RESUME_FROM.Trim().Length -gt 0) {
             $env:FL_RESUME = "true"
